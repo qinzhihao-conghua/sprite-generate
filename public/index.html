@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>图标标准化与通用雪碧图</title>
+    <link rel="stylesheet" href="/vendor/ol/ol.css" />
+    <script src="/vendor/ol/dist/ol.js"></script>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">SPRITE PIPELINE · MVP</p>
+        <h1>一份图集，地图与页面共用</h1>
+        <p>批量上传 SVG、PNG、JPEG/JPG 或 WebP，保留完整原图、等比缩放并生成透明 PNG 图集；业务代码始终只引用 iconId。</p>
+      </div>
+      <div id="status" class="status" role="status">准备加载…</div>
+    </header>
+
+    <main>
+      <section id="metrics" class="metrics" aria-label="请求对比"></section>
+
+      <section class="panel upload-panel">
+        <div class="section-heading">
+          <div><span class="number">01</span><h2>上传或替换图标</h2></div>
+          <p>新 iconId 表示追加；已存在的 iconId 表示替换，业务引用保持不变。</p>
+        </div>
+        <form id="upload-form">
+          <div class="generation-settings">
+            <label>雪碧图基础名称
+              <input id="sprite-name" name="spriteName" value="sprite" maxlength="64" required />
+              <small>自动生成“名称.v001.内容哈希.png”，版本逐次递增。</small>
+            </label>
+            <label>iconId 前缀
+              <input id="id-prefix" value="icon" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,31}" maxlength="32" required />
+              <small>默认 ID 按现有数量自增，例如 icon-101。</small>
+            </label>
+            <label class="trim-option">
+              <input id="trim-transparent" type="checkbox" />
+              <span>生成前裁掉透明边界</span>
+              <small>全局选项：勾选后所有图标先裁掉透明区域，再按边距等比缩放；默认保留完整原图。</small>
+            </label>
+          </div>
+          <div class="upload-picker">
+            <label class="file-picker">
+              <span>选择多张图片</span>
+              <input id="file-input" name="files" type="file" accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp" multiple required />
+            </label>
+            <p>单张最大 2 MiB、宽高均不超过 160 px，整批最大 20 MiB。是否裁掉透明边界由上方全局选项控制，之后统一等比缩放；每张图可分别设置 ID、锚点和 0～24 px 边距。</p>
+          </div>
+          <div class="output-paths">
+            <span>当前 PNG</span><a id="sprite-image-path" target="_blank" rel="noreferrer">尚未生成</a>
+            <span>当前 manifest</span><a id="sprite-manifest-path" target="_blank" rel="noreferrer">尚未生成</a>
+          </div>
+          <div id="batch-empty" class="batch-empty">选择图片后，可在这里检查每张图片是“新增”还是“替换”。</div>
+          <div id="batch-table-wrap" class="batch-table-wrap" hidden>
+            <table>
+              <thead><tr><th>预览</th><th>原文件</th><th>操作</th><th>iconId</th><th>名称</th><th>锚点</th><th>边距</th></tr></thead>
+              <tbody id="batch-rows"></tbody>
+            </table>
+          </div>
+          <div class="form-actions">
+            <div><span id="batch-summary">尚未选择图片</span><small>追加会重建并发布一对新的 manifest 与 PNG，旧版本继续保留。</small></div>
+            <button id="upload-submit" type="submit" disabled>上传并重建 PNG 图集</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div><span class="number">02</span><h2>普通页面 · CSS 雪碧图</h2></div>
+          <p>按钮、列表、状态卡片等非地图场景使用同一 manifest；鼠标移入图标可永久删除。</p>
+        </div>
+        <div id="gallery" class="gallery"></div>
+      </section>
+
+      <section class="panel map-panel">
+        <div class="section-heading">
+          <div><span class="number">03</span><h2>OpenLayers · 1000 点位</h2></div>
+          <p>同一 iconId 复用 Style，当前样式缓存约 <strong id="style-cache-count">0</strong> 项。</p>
+        </div>
+        <div id="map" aria-label="OpenLayers 图标演示地图"></div>
+      </section>
+    </main>
+  </body>
+</html>
