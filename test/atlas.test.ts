@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { AtlasPublisher } from "../src/atlas.js";
@@ -7,12 +7,12 @@ import { IconStore, sha256 } from "../src/storage.js";
 import type { IconRecord } from "../src/types.js";
 import { temporaryConfig, svg } from "./helpers.js";
 
-test("17 个图标按固定网格生成确定性 manifest，并保留旧版本", async () => {
+test("17 个图标按固定网格生成确定性 manifest，并覆盖上一版本", async () => {
   const { config } = await temporaryConfig();
   const store = new IconStore(config.dataDir);
   const source = svg();
   for (let index = 0; index < 17; index += 1) {
-    const id = index === 0 ? "default" : `icon-${String(index).padStart(2, "0")}`;
+    const id = index === 0 ? "4-default" : `icon-${String(index).padStart(2, "0")}`;
     const record: IconRecord = {
       id,
       name: id,
@@ -33,8 +33,9 @@ test("17 个图标按固定网格生成确定性 manifest，并保留旧版本",
 
   const publisher = new AtlasPublisher(config);
   const first = await publisher.publish(await store.list(), "map-icons");
-  assert.match(first.manifest.image, /map-icons\.v001\.[a-f0-9]{8}\.png$/);
-  assert.match(first.manifest.manifest, /map-icons\.v001\.manifest\.json$/);
+  assert.equal(first.manifest.image, "/generated/current/map-icons.png");
+  assert.equal(first.manifest.manifest, "/generated/current/map-icons.manifest.json");
+  assert.equal(first.manifest.stylesheet, "/generated/current/map-icons.css");
   assert.equal(first.manifest.buildNumber, 1);
   assert.equal(first.manifest.trimTransparent, false);
   assert.equal(first.manifest.width, 1024);
@@ -50,16 +51,33 @@ test("17 个图标按固定网格生成确定性 manifest，并保留旧版本",
     anchor: [0.5, 0.5],
     padding: 6
   });
+  const stylesheet = await readFile(
+    path.join(config.generatedDir, "current", path.basename(first.manifest.stylesheet)),
+    "utf8"
+  );
+  assert.match(stylesheet, /\[class~="4-default"\],/);
+  assert.match(stylesheet, /\[class~="icon-16"\] \{/);
+  assert.match(stylesheet, /background-image: url\("\/generated\/current\/map-icons\.png"\)/);
+  assert.match(stylesheet, /\[class~="icon-16"\] \{[\s\S]*background-position: 0px -32px;/);
   const second = await publisher.publish(await store.list(), "map-icons");
   assert.equal(second.manifest.version, first.manifest.version);
   assert.equal(second.reused, true);
 
-  const defaultRecord = (await store.list()).find((record) => record.id === "default")!;
+  const defaultRecord = (await store.list()).find((record) => record.id === "4-default")!;
   await store.save({ ...defaultRecord, anchorType: "bottom", anchor: [0.5, 1] }, source);
   const third = await publisher.publish(await store.list(), "map-icons");
   assert.notEqual(third.manifest.version, first.manifest.version);
   assert.equal(third.manifest.buildNumber, 2);
-  await access(path.join(config.generatedDir, "versions", first.manifest.version, path.basename(first.manifest.manifest)));
-  const pointer = JSON.parse(await readFile(path.join(config.generatedDir, "current.json"), "utf8"));
+  assert.deepEqual(await readdir(config.generatedDir), ["current"]);
+  assert.deepEqual(
+    (await readdir(path.join(config.generatedDir, "current"))).sort(),
+    ["current.json", "map-icons.css", "map-icons.manifest.json", "map-icons.png"]
+  );
+  const overwrittenManifest = JSON.parse(
+    await readFile(path.join(config.generatedDir, "current", "map-icons.manifest.json"), "utf8")
+  );
+  assert.equal(overwrittenManifest.version, third.manifest.version);
+  assert.equal(overwrittenManifest.icons["4-default"].anchor[1], 1);
+  const pointer = JSON.parse(await readFile(path.join(config.generatedDir, "current", "current.json"), "utf8"));
   assert.equal(pointer.version, third.manifest.version);
 });

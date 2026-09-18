@@ -1,9 +1,10 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { AppError } from "./errors.js";
 import { normalizeIcon } from "./normalize.js";
-import { atomicWriteFile, ensureDirectory, readJson, sha256 } from "./storage.js";
+import { ensureDirectory, readJson, sha256 } from "./storage.js";
 import type { IconRecord, SpriteConfig, SpriteManifest } from "./types.js";
 
 interface PublishResult {
@@ -19,7 +20,43 @@ export interface CurrentPointer {
   spriteName: string;
   image: string;
   manifest: string;
+  stylesheet: string;
   trimTransparent: boolean;
+}
+
+const CSS_FORMAT_VERSION = 2;
+
+function iconClassSelector(iconId: string): string {
+  return `[class~="${iconId}"]`;
+}
+
+function createStylesheet(
+  records: IconRecord[],
+  icons: SpriteManifest["icons"],
+  imageUrl: string,
+  atlasWidth: number,
+  atlasHeight: number
+): string {
+  const selectors = records.map((record) => iconClassSelector(record.id)).join(",\n");
+  const rules = records.map((record) => {
+    const icon = icons[record.id]!;
+    const scaleX = icon.displayWidth / icon.width;
+    const scaleY = icon.displayHeight / icon.height;
+    return `${iconClassSelector(record.id)} {\n` +
+      `  width: ${icon.displayWidth}px;\n` +
+      `  height: ${icon.displayHeight}px;\n` +
+      `  flex: 0 0 ${icon.displayWidth}px;\n` +
+      `  background-size: ${atlasWidth * scaleX}px ${atlasHeight * scaleY}px;\n` +
+      `  background-position: ${-icon.x * scaleX}px ${-icon.y * scaleY}px;\n` +
+      `}`;
+  });
+  return `/* Generated file. Use the iconId directly: class="<iconId>" */\n` +
+    `${selectors} {\n` +
+    `  display: inline-block;\n` +
+    `  background-image: url("${imageUrl}");\n` +
+    `  background-repeat: no-repeat;\n` +
+    `}\n\n` +
+    `${rules.join("\n\n")}\n`;
 }
 
 export class AtlasPublisher {
@@ -89,21 +126,27 @@ export class AtlasPublisher {
       index
     }));
     const contentHash = sha256(
-      Buffer.concat([atlas, Buffer.from(JSON.stringify({ trimTransparent, icons: manifestMetadata }))])
+      Buffer.concat([
+        atlas,
+        Buffer.from(JSON.stringify({ trimTransparent, cssFormatVersion: CSS_FORMAT_VERSION, icons: manifestMetadata }))
+      ])
     );
-    const pointerFile = path.join(this.config.generatedDir, "current.json");
-    const current = await readJson<CurrentPointer | null>(pointerFile, null);
+    const currentDir = path.join(this.config.generatedDir, "current");
+    const pointerFile = path.join(currentDir, "current.json");
+    const legacyPointerFile = path.join(this.config.generatedDir, "current.json");
+    const current = await readJson<CurrentPointer | null>(
+      pointerFile,
+      await readJson<CurrentPointer | null>(legacyPointerFile, null)
+    );
     if (
       current?.contentHash === contentHash &&
       current.spriteName === spriteName &&
-      current.trimTransparent === trimTransparent
+      current.trimTransparent === trimTransparent &&
+      current.stylesheet?.startsWith("/generated/current/")
     ) {
-      const manifestFile = path.join(
-        this.config.generatedDir,
-        "versions",
-        current.version,
-        path.basename(current.manifest)
-      );
+      const manifestFile = path.join(currentDir, path.basename(current.manifest));
+      const stylesheetFile = path.join(currentDir, path.basename(current.stylesheet));
+      await access(stylesheetFile);
       const manifest = JSON.parse(await readFile(manifestFile, "utf8")) as SpriteManifest;
       return { manifest, manifestUrl: current.manifest, reused: true };
     }
@@ -112,13 +155,12 @@ export class AtlasPublisher {
     const versionLabel = `v${String(buildNumber).padStart(3, "0")}`;
     const shortHash = contentHash.slice(0, 8);
     const version = `${versionLabel}-${shortHash}`;
-    const imageName = `${spriteName}.${versionLabel}.${shortHash}.png`;
-    const manifestName = `${spriteName}.${versionLabel}.manifest.json`;
-    const versionDir = path.join(this.config.generatedDir, "versions", version);
-    const imageFile = path.join(versionDir, imageName);
-    const manifestFile = path.join(versionDir, manifestName);
-    const manifestUrl = `/generated/versions/${version}/${manifestName}`;
-    const imageUrl = `/generated/versions/${version}/${imageName}`;
+    const imageName = `${spriteName}.png`;
+    const manifestName = `${spriteName}.manifest.json`;
+    const stylesheetName = `${spriteName}.css`;
+    const manifestUrl = `/generated/current/${manifestName}`;
+    const imageUrl = `/generated/current/${imageName}`;
+    const stylesheetUrl = `/generated/current/${stylesheetName}`;
 
     const icons = Object.fromEntries(
       enabled.map((record, index) => [
@@ -142,6 +184,7 @@ export class AtlasPublisher {
       contentHash,
       image: imageUrl,
       manifest: manifestUrl,
+      stylesheet: stylesheetUrl,
       trimTransparent,
       pixelRatio: this.config.pixelRatio,
       width,
@@ -150,38 +193,60 @@ export class AtlasPublisher {
       usages: ["map", "page"],
       icons
     };
+    const stylesheet = createStylesheet(enabled, icons, imageUrl, width, height);
 
-    let reused = true;
+    const stagingDir = path.join(this.config.generatedDir, `.staging-${randomUUID()}`);
+    const imageFile = path.join(stagingDir, imageName);
+    const manifestFile = path.join(stagingDir, manifestName);
+    const stylesheetFile = path.join(stagingDir, stylesheetName);
+    const stagedPointerFile = path.join(stagingDir, "current.json");
     try {
-      await access(imageFile);
-      await access(manifestFile);
-    } catch {
-      reused = false;
-      await ensureDirectory(versionDir);
-      await writeFile(imageFile, atlas, { flag: "wx" }).catch(async (error: NodeJS.ErrnoException) => {
-        if (error.code !== "EEXIST") throw error;
-      });
-      await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx" }).catch(
-        async (error: NodeJS.ErrnoException) => {
-          if (error.code !== "EEXIST") throw error;
-        }
+      await ensureDirectory(stagingDir);
+      await writeFile(imageFile, atlas);
+      await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+      await writeFile(stylesheetFile, stylesheet);
+      await writeFile(
+        stagedPointerFile,
+        `${JSON.stringify({
+          version,
+          buildNumber,
+          contentHash,
+          spriteName,
+          trimTransparent,
+          image: imageUrl,
+          manifest: manifestUrl,
+          stylesheet: stylesheetUrl
+        })}\n`
       );
       await access(imageFile);
       await access(manifestFile);
+      await access(stylesheetFile);
+      await this.replaceCurrentDirectory(currentDir, stagingDir);
+      await rm(legacyPointerFile, { force: true });
+      await rm(path.join(this.config.generatedDir, "versions"), { recursive: true, force: true });
+    } catch (error) {
+      await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+    return { manifest, manifestUrl, reused: false };
+  }
+
+  private async replaceCurrentDirectory(currentDir: string, stagingDir: string): Promise<void> {
+    const replacedDir = path.join(this.config.generatedDir, `.replaced-${randomUUID()}`);
+    let hadCurrent = false;
+    try {
+      await rename(currentDir, replacedDir);
+      hadCurrent = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
 
-    await atomicWriteFile(
-      pointerFile,
-      `${JSON.stringify({
-        version,
-        buildNumber,
-        contentHash,
-        spriteName,
-        trimTransparent,
-        image: imageUrl,
-        manifest: manifestUrl
-      })}\n`
-    );
-    return { manifest, manifestUrl, reused };
+    try {
+      await rename(stagingDir, currentDir);
+    } catch (error) {
+      if (hadCurrent) await rename(replacedDir, currentDir).catch(() => undefined);
+      throw error;
+    }
+    if (hadCurrent) await rm(replacedDir, { recursive: true, force: true });
   }
 }

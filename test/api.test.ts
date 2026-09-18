@@ -7,7 +7,7 @@ import sharp from "sharp";
 import { createApp } from "../src/app.js";
 import { temporaryConfig, svg } from "./helpers.js";
 
-test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", async (context) => {
+test("上传、后台重建、ETag 与覆盖式图集发布形成完整闭环", async (context) => {
   const { config } = await temporaryConfig();
   const { app, services } = createApp(config);
   const server: Server = await new Promise((resolve) => {
@@ -39,8 +39,9 @@ test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", 
   assert.equal(manifest.name, "map-icons");
   assert.equal(manifest.buildNumber, 1);
   assert.equal(manifest.trimTransparent, false);
-  assert.match(manifest.image, /map-icons\.v001\.[a-f0-9]{8}\.png$/);
-  assert.match(manifest.manifest, /map-icons\.v001\.manifest\.json$/);
+  assert.equal(manifest.image, "/generated/current/map-icons.png");
+  assert.equal(manifest.manifest, "/generated/current/map-icons.manifest.json");
+  assert.equal(manifest.stylesheet, "/generated/current/map-icons.css");
 
   const notModified = await fetch(`${baseUrl}/api/icons/manifest`, { headers: { "If-None-Match": etag! } });
   assert.equal(notModified.status, 304);
@@ -48,7 +49,22 @@ test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", 
   assert.equal(atlas.status, 200);
   assert.match(manifest.image, /\.png$/);
   assert.equal(atlas.headers.get("content-type"), "image/png");
-  assert.equal(atlas.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(atlas.headers.get("cache-control"), "no-cache");
+
+  const stylesheetResponse = await fetch(`${baseUrl}/api/icons/stylesheet`);
+  assert.equal(stylesheetResponse.status, 200);
+  assert.equal(stylesheetResponse.headers.get("cache-control"), "no-cache");
+  assert.match(stylesheetResponse.headers.get("content-type") ?? "", /^text\/css/);
+  const stylesheetEtag = stylesheetResponse.headers.get("etag");
+  assert.ok(stylesheetEtag);
+  assert.match(await stylesheetResponse.text(), /\[class~="default"\] \{/);
+  const stylesheetNotModified = await fetch(`${baseUrl}/api/icons/stylesheet`, {
+    headers: { "If-None-Match": stylesheetEtag! }
+  });
+  assert.equal(stylesheetNotModified.status, 304);
+  const generatedStylesheet = await fetch(`${baseUrl}${manifest.stylesheet}`);
+  assert.equal(generatedStylesheet.status, 200);
+  assert.equal(generatedStylesheet.headers.get("cache-control"), "no-cache");
 
   const jpeg = await sharp({ create: { width: 150, height: 80, channels: 3, background: "#315b8a" } })
     .jpeg()
@@ -72,6 +88,7 @@ test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", 
   const updatedManifest = await fetch(`${baseUrl}/api/icons/manifest`).then((response) => response.json());
   assert.equal(updatedManifest.trimTransparent, true);
   assert.ok(updatedManifest.icons.camera);
+  assert.match(await fetch(`${baseUrl}/api/icons/stylesheet`).then((response) => response.text()), /\[class~="camera"\] \{/);
   const records = await fetch(`${baseUrl}/api/icons`).then((response) => response.json());
   assert.equal(records.find((record: { id: string }) => record.id === "default").padding, 10);
   assert.equal(records.find((record: { id: string }) => record.id === "camera").sourceFormat, "jpeg");
@@ -87,6 +104,10 @@ test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", 
   assert.equal(withoutCamera.trimTransparent, true);
   assert.equal(withoutCamera.icons.camera, undefined);
   assert.ok(withoutCamera.icons.default);
+  assert.doesNotMatch(
+    await fetch(`${baseUrl}/api/icons/stylesheet`).then((response) => response.text()),
+    /\[class~="camera"\](?:,| \{)/
+  );
   const remainingRecords = await fetch(`${baseUrl}/api/icons`).then((response) => response.json());
   assert.equal(remainingRecords.find((record: { id: string }) => record.id === "camera"), undefined);
   assert.deepEqual(
@@ -94,11 +115,12 @@ test("上传、后台重建、ETag 与不可变图集缓存形成完整闭环", 
     []
   );
 
-  const oldManifest = await fetch(`${baseUrl}${updatedManifest.manifest}`);
-  const oldAtlas = await fetch(`${baseUrl}${updatedManifest.image}`);
-  assert.equal(oldManifest.status, 200);
-  assert.equal(oldAtlas.status, 200);
-  assert.equal((await oldManifest.json()).icons.camera !== undefined, true);
+  const overwrittenManifest = await fetch(`${baseUrl}${updatedManifest.manifest}`);
+  const overwrittenAtlas = await fetch(`${baseUrl}${updatedManifest.image}`);
+  assert.equal(overwrittenManifest.status, 200);
+  assert.equal(overwrittenAtlas.status, 200);
+  assert.equal((await overwrittenManifest.json()).icons.camera, undefined);
+  assert.deepEqual(await readdir(config.generatedDir), ["current"]);
 
   const removeAgain = await fetch(`${baseUrl}/api/icons/camera`, { method: "DELETE" });
   assert.equal(removeAgain.status, 404);

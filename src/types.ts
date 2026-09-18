@@ -38,6 +38,7 @@ export interface SpriteManifest {
   contentHash: string;
   image: string;
   manifest: string;
+  stylesheet: string;
   trimTransparent: boolean;
   pixelRatio: number;
   width: number;

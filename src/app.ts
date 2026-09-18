@@ -49,7 +49,7 @@ export function createApp(config: SpriteConfig) {
 
   async function currentBuildOptions(body: Record<string, unknown> | undefined) {
     const current = await readJson<CurrentPointer | null>(
-      path.join(config.generatedDir, "current.json"),
+      path.join(config.generatedDir, "current", "current.json"),
       null
     );
     return {
@@ -226,13 +226,13 @@ export function createApp(config: SpriteConfig) {
     "/api/icons/manifest",
     asyncRoute(async (request, response) => {
       const current = await readJson<{ version: string; manifest: string } | null>(
-        path.join(config.generatedDir, "current.json"),
+        path.join(config.generatedDir, "current", "current.json"),
         null
       );
       if (!current) throw new AppError("图集尚未生成", 404, "MANIFEST_NOT_READY");
       const manifest = JSON.parse(
         await readFile(
-          path.join(config.generatedDir, "versions", current.version, path.basename(current.manifest)),
+          path.join(config.generatedDir, "current", path.basename(current.manifest)),
           "utf8"
         )
       ) as SpriteManifest;
@@ -246,16 +246,35 @@ export function createApp(config: SpriteConfig) {
     })
   );
 
+  app.get(
+    "/api/icons/stylesheet",
+    asyncRoute(async (request, response) => {
+      const current = await readJson<{ version: string; stylesheet?: string } | null>(
+        path.join(config.generatedDir, "current", "current.json"),
+        null
+      );
+      if (!current?.stylesheet) throw new AppError("图标样式表尚未生成", 404, "STYLESHEET_NOT_READY");
+      const etag = `\"${current.version}\"`;
+      response.set({ "Cache-Control": "no-cache", ETag: etag, "Content-Type": "text/css; charset=utf-8" });
+      if (request.get("If-None-Match") === etag) {
+        response.status(304).end();
+        return;
+      }
+      response.send(
+        await readFile(
+          path.join(config.generatedDir, "current", path.basename(current.stylesheet)),
+          "utf8"
+        )
+      );
+    })
+  );
+
   app.use(
     "/generated",
     express.static(config.generatedDir, {
       fallthrough: false,
-      setHeaders(response, file) {
-        if (file.includes(`${path.sep}versions${path.sep}`)) {
-          response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        } else {
-          response.setHeader("Cache-Control", "no-cache");
-        }
+      setHeaders(response) {
+        response.setHeader("Cache-Control", "no-cache");
       }
     })
   );

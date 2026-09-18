@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/vendor/ol/ol.css" />
     <script src="/vendor/ol/dist/ol.js"></script>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/api/icons/stylesheet" />
     <script type="module" src="/app.js"></script>
   </head>
   <body>
@@ -14,7 +15,7 @@
       <div>
         <p class="eyebrow">SPRITE PIPELINE · MVP</p>
         <h1>一份图集，地图与页面共用</h1>
-        <p>批量上传 SVG、PNG、JPEG/JPG 或 WebP，保留完整原图、等比缩放并生成透明 PNG 图集；业务代码始终只引用 iconId。</p>
+        <p>批量上传 SVG、PNG、JPEG/JPG 或 WebP，保留完整原图、等比缩放并生成透明 PNG 图集与 ID 样式类；业务代码始终只引用 iconId。</p>
       </div>
       <div id="status" class="status" role="status">准备加载…</div>
     </header>
@@ -31,7 +32,7 @@
           <div class="generation-settings">
             <label>雪碧图基础名称
               <input id="sprite-name" name="spriteName" value="sprite" maxlength="64" required />
-              <small>自动生成“名称.v001.内容哈希.png”，版本逐次递增。</small>
+              <small>生成“名称.png / 名称.manifest.json / 名称.css”，每次覆盖当前产物。</small>
             </label>
             <label>iconId 前缀
               <input id="id-prefix" value="icon" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,31}" maxlength="32" required />
@@ -53,6 +54,7 @@
           <div class="output-paths">
             <span>当前 PNG</span><a id="sprite-image-path" target="_blank" rel="noreferrer">尚未生成</a>
             <span>当前 manifest</span><a id="sprite-manifest-path" target="_blank" rel="noreferrer">尚未生成</a>
+            <span>当前 CSS</span><a id="sprite-stylesheet-path" target="_blank" rel="noreferrer">尚未生成</a>
           </div>
           <div id="batch-empty" class="batch-empty">选择图片后，可在这里检查每张图片是“新增”还是“替换”。</div>
           <div id="batch-table-wrap" class="batch-table-wrap" hidden>
@@ -62,7 +64,7 @@
             </table>
           </div>
           <div class="form-actions">
-            <div><span id="batch-summary">尚未选择图片</span><small>追加会重建并发布一对新的 manifest 与 PNG，旧版本继续保留。</small></div>
+            <div><span id="batch-summary">尚未选择图片</span><small>每次生成都会覆盖当前 PNG、manifest 与 CSS，不保留上一版本。</small></div>
             <button id="upload-submit" type="submit" disabled>上传并重建 PNG 图集</button>
           </div>
         </form>
@@ -71,7 +73,7 @@
       <section class="panel">
         <div class="section-heading">
           <div><span class="number">02</span><h2>普通页面 · CSS 雪碧图</h2></div>
-          <p>按钮、列表、状态卡片等非地图场景使用同一 manifest；鼠标移入图标可永久删除。</p>
+          <p>引入生成的 CSS 后，标签的 class 直接填写 iconId；鼠标移入图标可永久删除。</p>
         </div>
         <div id="gallery" class="gallery"></div>
       </section>

@@ -7,6 +7,7 @@ export interface QueueStatus {
   lastVersion?: string;
   lastImage?: string;
   lastManifest?: string;
+  lastStylesheet?: string;
   spriteName?: string;
   trimTransparent?: boolean;
   lastError?: string;
@@ -69,6 +70,7 @@ export class RebuildQueue {
           lastVersion: result.manifest.version,
           lastImage: result.manifest.image,
           lastManifest: result.manifest.manifest,
+          lastStylesheet: result.manifest.stylesheet,
           spriteName,
           trimTransparent,
           updatedAt: new Date().toISOString()

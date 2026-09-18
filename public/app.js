@@ -16,6 +16,7 @@ const idPrefixInput = document.querySelector("#id-prefix");
 const trimTransparentInput = document.querySelector("#trim-transparent");
 const spriteImagePath = document.querySelector("#sprite-image-path");
 const spriteManifestPath = document.querySelector("#sprite-manifest-path");
+const spriteStylesheetPath = document.querySelector("#sprite-stylesheet-path");
 const batchRows = document.querySelector("#batch-rows");
 const batchEmpty = document.querySelector("#batch-empty");
 const batchTableWrap = document.querySelector("#batch-table-wrap");
@@ -33,11 +34,12 @@ function seeded(index) {
 function showMetrics(iconCount) {
   const resources = performance.getEntriesByType("resource");
   const manifestRequests = resources.filter((item) => item.name.includes("/api/icons/manifest")).length;
-  const atlasRequests = resources.filter((item) => item.name.includes("/generated/versions/") && item.name.endsWith(".png")).length;
+  const stylesheetRequests = resources.filter((item) => item.name.includes("/api/icons/stylesheet")).length;
+  const atlasRequests = resources.filter((item) => item.name.includes("/generated/current/") && item.name.endsWith(".png")).length;
   metrics.innerHTML = `
     <div><strong>${iconCount}</strong><span>图标种类</span></div>
     <div><strong>1000</strong><span>地图点位</span></div>
-    <div><strong>${manifestRequests + atlasRequests}</strong><span>实际图标请求</span></div>
+    <div><strong>${manifestRequests + stylesheetRequests + atlasRequests}</strong><span>实际图标请求</span></div>
     <div><strong>${iconCount}</strong><span>独立图片基线请求</span></div>`;
 }
 
@@ -46,7 +48,11 @@ function renderGallery(iconIds) {
   for (const iconId of iconIds) {
     const item = document.createElement("div");
     item.className = "gallery-item";
-    item.append(atlas.createElement(iconId, { size: 40, label: `页面图标 ${iconId}` }));
+    item.append(field("span", {
+      className: iconId,
+      role: "img",
+      ariaLabel: `页面图标 ${iconId}`
+    }));
     const label = document.createElement("span");
     label.className = "gallery-label";
     label.textContent = iconId;
@@ -109,6 +115,8 @@ function renderOutputPaths(manifest) {
   spriteImagePath.textContent = manifest.image;
   spriteManifestPath.href = manifest.manifest;
   spriteManifestPath.textContent = manifest.manifest;
+  spriteStylesheetPath.href = manifest.stylesheet;
+  spriteStylesheetPath.textContent = manifest.stylesheet;
 }
 
 function field(tag, attributes = {}) {
