@@ -30,10 +30,11 @@ export function sha256(data: string | Buffer): string {
 export class IconStore {
   readonly originalsDir: string;
   readonly recordsFile: string;
+  private mutationQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly dataDir: string) {
-    this.originalsDir = path.join(dataDir, "originals");
-    this.recordsFile = path.join(dataDir, "icons.json");
+  constructor(originalsDirOrDataDir: string, recordsFile?: string) {
+    this.originalsDir = recordsFile ? originalsDirOrDataDir : path.join(originalsDirOrDataDir, "originals");
+    this.recordsFile = recordsFile ?? path.join(originalsDirOrDataDir, "icons.json");
   }
 
   async list(): Promise<IconRecord[]> {
@@ -46,14 +47,23 @@ export class IconStore {
   }
 
   async saveBatch(items: Array<{ record: IconRecord; source: Buffer }>): Promise<void> {
+    return this.withMutationLock(async () => this.saveBatchUnlocked(items));
+  }
+
+  private async saveBatchUnlocked(items: Array<{ record: IconRecord; source: Buffer }>): Promise<void> {
     await ensureDirectory(this.originalsDir);
+    const records = await this.list();
+    const staleFiles = new Set<string>();
+    for (const { record } of items) {
+      const existing = records.find((item) => item.id === record.id);
+      if (existing && existing.sourceFile !== record.sourceFile) staleFiles.add(existing.sourceFile);
+    }
     await Promise.all(
       items.map(({ record, source }) =>
         atomicWriteFile(path.join(this.originalsDir, record.sourceFile), source)
       )
     );
 
-    const records = await this.list();
     for (const { record } of items) {
       const index = records.findIndex((item) => item.id === record.id);
       if (index >= 0) records[index] = record;
@@ -61,18 +71,38 @@ export class IconStore {
     }
     records.sort((left, right) => left.id.localeCompare(right.id));
     await atomicWriteFile(this.recordsFile, `${JSON.stringify(records, null, 2)}\n`);
+    const referenced = new Set(records.map((record) => record.sourceFile));
+    await Promise.all(
+      [...staleFiles]
+        .filter((sourceFile) => !referenced.has(sourceFile))
+        .map((sourceFile) => rm(path.join(this.originalsDir, sourceFile), { force: true }))
+    );
+  }
+
+  async replaceAll(records: IconRecord[]): Promise<void> {
+    return this.withMutationLock(async () => {
+      await atomicWriteFile(
+        this.recordsFile,
+        `${JSON.stringify([...records].sort((left, right) => left.id.localeCompare(right.id)), null, 2)}\n`
+      );
+    });
   }
 
   async remove(iconId: string): Promise<IconRecord | null> {
+    return this.withMutationLock(async () => this.removeUnlocked(iconId));
+  }
+
+  private async removeUnlocked(iconId: string): Promise<IconRecord | null> {
     const records = await this.list();
     const index = records.findIndex((record) => record.id === iconId);
     if (index < 0) return null;
 
     const [record] = records.splice(index, 1);
-    const sourceFiles = (await readdir(this.originalsDir)).filter((file) =>
-      file.startsWith(`${iconId}.`)
+    await ensureDirectory(this.originalsDir);
+    const sourceFiles = (await readdir(this.originalsDir)).filter(
+      (file) => file === record!.sourceFile || file.startsWith(`${iconId}.`)
     );
-    const stagingDir = path.join(this.dataDir, ".deleting", randomUUID());
+    const stagingDir = path.join(path.dirname(this.recordsFile), ".deleting", randomUUID());
     await ensureDirectory(stagingDir);
     const moved: string[] = [];
     let metadataCommitted = false;
@@ -101,5 +131,14 @@ export class IconStore {
       }
       throw error;
     }
+  }
+
+  private withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mutationQueue.then(operation, operation);
+    this.mutationQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
   }
 }

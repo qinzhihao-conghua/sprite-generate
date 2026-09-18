@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import multer from "multer";
 import { AtlasPublisher, type CurrentPointer } from "./atlas.js";
+import { saveProjectBuildOptions } from "./config.js";
 import { AppError } from "./errors.js";
 import { RebuildQueue } from "./queue.js";
 import { IconStore, readJson, sha256 } from "./storage.js";
@@ -39,7 +41,7 @@ function parseBoolean(value: unknown): boolean {
 
 export function createApp(config: SpriteConfig) {
   const app = express();
-  const store = new IconStore(config.dataDir);
+  const store = new IconStore(config.originalsDir, config.recordsFile);
   const publisher = new AtlasPublisher(config);
   const queue = new RebuildQueue(store, publisher);
   const upload = multer({
@@ -55,11 +57,11 @@ export function createApp(config: SpriteConfig) {
     return {
       spriteName:
         body?.spriteName === undefined
-          ? (current?.spriteName ?? "sprite")
+          ? (current?.spriteName ?? config.spriteName)
           : validateSpriteName(body.spriteName),
       trimTransparent:
         body?.trimTransparent === undefined
-          ? (current?.trimTransparent ?? false)
+          ? (current?.trimTransparent ?? config.trimTransparent)
           : parseBoolean(body.trimTransparent)
     };
   }
@@ -84,7 +86,7 @@ export function createApp(config: SpriteConfig) {
       record: {
         id: iconId,
         name: String(metadata.name ?? iconId).trim().slice(0, 100) || iconId,
-        sourceFile: `${iconId}.${contentHash.slice(0, 16)}.${inspected.extension}`,
+        sourceFile: `${iconId}.${inspected.extension}`,
         sourceFormat: inspected.format,
         anchorType,
         anchor,
@@ -118,11 +120,11 @@ export function createApp(config: SpriteConfig) {
     upload.single("file"),
     asyncRoute(async (request, response) => {
       if (!request.file) throw new AppError("缺少 file 上传字段", 400, "FILE_REQUIRED");
-      const spriteName = validateSpriteName(request.body.spriteName);
-      const trimTransparent = parseBoolean(request.body.trimTransparent);
+      const { spriteName, trimTransparent } = await currentBuildOptions(request.body);
       const existingById = new Map((await store.list()).map((item) => [item.id, item]));
       const prepared = await prepareIcon(request.file, request.body, existingById);
       await store.save(prepared.record, prepared.source);
+      await saveProjectBuildOptions(config, spriteName, trimTransparent);
       queue.enqueue(spriteName, trimTransparent);
       response.status(prepared.action === "replaced" ? 200 : 201).json({
         icon: prepared.record,
@@ -161,13 +163,13 @@ export function createApp(config: SpriteConfig) {
         throw new AppError("同一批次中 iconId 不能重复", 409, "DUPLICATE_ICON_ID");
       }
 
-      const spriteName = validateSpriteName(request.body.spriteName);
-      const trimTransparent = parseBoolean(request.body.trimTransparent);
+      const { spriteName, trimTransparent } = await currentBuildOptions(request.body);
       const existingById = new Map((await store.list()).map((item) => [item.id, item]));
       const prepared = await Promise.all(
         files.map((file, index) => prepareIcon(file, metadata[index]!, existingById))
       );
       await store.saveBatch(prepared.map(({ record, source }) => ({ record, source })));
+      await saveProjectBuildOptions(config, spriteName, trimTransparent);
       queue.enqueue(spriteName, trimTransparent);
 
       const added = prepared.filter((item) => item.action === "added").length;
@@ -198,7 +200,10 @@ export function createApp(config: SpriteConfig) {
       const options = await currentBuildOptions(request.body);
       const removed = await store.remove(iconId);
       if (!removed) throw new AppError("图标不存在", 404, "ICON_NOT_FOUND");
-      if (removed.enabled) queue.enqueue(options.spriteName, options.trimTransparent);
+      if (removed.enabled) {
+        await saveProjectBuildOptions(config, options.spriteName, options.trimTransparent);
+        queue.enqueue(options.spriteName, options.trimTransparent);
+      }
 
       response.status(removed.enabled ? 202 : 200).json({
         icon: removed,
@@ -211,12 +216,12 @@ export function createApp(config: SpriteConfig) {
     })
   );
 
-  app.post("/api/icons/rebuild", (request, response) => {
-    const spriteName = validateSpriteName(request.body?.spriteName);
-    const trimTransparent = parseBoolean(request.body?.trimTransparent);
+  app.post("/api/icons/rebuild", asyncRoute(async (request, response) => {
+    const { spriteName, trimTransparent } = await currentBuildOptions(request.body);
+    await saveProjectBuildOptions(config, spriteName, trimTransparent);
     queue.enqueue(spriteName, trimTransparent);
     response.status(202).json({ message: "图集重建任务已进入队列", rebuild: queue.getStatus() });
-  });
+  }));
 
   app.get("/api/icons/rebuild", (_request, response) => {
     response.set("Cache-Control", "no-store").json(queue.getStatus());
@@ -278,7 +283,8 @@ export function createApp(config: SpriteConfig) {
       }
     })
   );
-  app.use("/vendor/ol", express.static(path.resolve("node_modules/ol"), { immutable: true, maxAge: "1y" }));
+  const olPackageDir = path.dirname(fileURLToPath(import.meta.resolve("ol")));
+  app.use("/vendor/ol", express.static(olPackageDir, { immutable: true, maxAge: "1y" }));
   app.use(express.static(config.publicDir, { extensions: ["html"] }));
 
   app.use(((error, _request, response, _next) => {

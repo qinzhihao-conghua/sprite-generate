@@ -49,9 +49,14 @@ export interface SpriteManifest {
 }
 
 export interface SpriteConfig {
+  projectRoot: string;
   dataDir: string;
+  originalsDir: string;
+  recordsFile: string;
   publicDir: string;
   generatedDir: string;
+  spriteName: string;
+  trimTransparent: boolean;
   cellSize: number;
   padding: number;
   pixelRatio: number;
@@ -62,4 +67,12 @@ export interface SpriteConfig {
   maxInputDimension: number;
   maxBatchFiles: number;
   maxBatchBytes: number;
+}
+
+export interface ProjectConfigFile {
+  sourceDir: string;
+  metadataFile: string;
+  outputDir: string;
+  spriteName?: string;
+  trimTransparent?: boolean;
 }

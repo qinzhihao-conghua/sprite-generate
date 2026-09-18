@@ -316,5 +316,5 @@ try {
   requestAnimationFrame(() => showMetrics(iconIds.length));
   status.textContent = `PNG 图集 ${manifest.name} · ${manifest.version} 已加载，可同时用于地图和普通页面。`;
 } catch (error) {
-  status.textContent = `${error.message}。请先运行 pnpm seed。`;
+  status.textContent = `${error.message}。请先把原图放入项目目录并运行 sprite-generator init/build，或直接上传第一张图标。`;
 }

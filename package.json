@@ -3,17 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist/server.js",
+  "files": [
+    "dist",
+    "public/*.html",
+    "public/*.css",
+    "public/*.js",
+    "public/*.d.ts",
+    "README.md"
+  ],
   "description": "图标标准化、版本化雪碧图生成及地图/普通页面复用示例",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/server.ts",
+    "build": "tsx scripts/clean-dist.ts && tsc -p tsconfig.build.json",
+    "package": "pnpm run build && tsx scripts/package-standalone.ts && npm install --omit=dev --prefix packages/sprite-generator/sprite-generator-runtime",
     "start": "node dist/server.js",
     "test": "tsx --test test/**/*.test.ts",
     "seed": "tsx scripts/seed-demo.ts",
-    "check": "pnpm run build && pnpm run test"
+    "check": "tsc -p tsconfig.json --noEmit && pnpm run build && pnpm run test"
   },
   "dependencies": {
     "express": "^4.21.2",

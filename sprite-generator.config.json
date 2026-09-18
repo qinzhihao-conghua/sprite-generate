@@ -1,0 +1,7 @@
+{
+  "sourceDir": "data/originals",
+  "metadataFile": "data/icons.json",
+  "outputDir": "public/generated",
+  "spriteName": "sprite",
+  "trimTransparent": false
+}

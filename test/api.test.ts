@@ -154,3 +154,76 @@ test("拒绝移除最后一个启用图标并保持当前版本不变", async (c
   const records = await fetch(`${baseUrl}/api/icons`).then((response) => response.json());
   assert.equal(records[0].enabled, true);
 });
+
+test("最小追加请求只需原图和 iconId，并继承当前图集全局设置", async (context) => {
+  const { config } = await temporaryConfig();
+  const { app, services } = createApp(config);
+  const server: Server = await new Promise((resolve) => {
+    const listening = app.listen(0, () => resolve(listening));
+  });
+  context.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const initial = new FormData();
+  initial.set("iconId", "first");
+  initial.set("spriteName", "intranet-icons");
+  initial.set("trimTransparent", "true");
+  initial.set("file", new Blob([svg().toString("utf8")], { type: "image/svg+xml" }), "first.svg");
+  assert.equal((await fetch(`${baseUrl}/api/icons`, { method: "POST", body: initial })).status, 201);
+  await services.queue.waitForIdle();
+
+  const minimal = new FormData();
+  minimal.set("iconId", "second");
+  minimal.set("file", new Blob([svg("#315b8a").toString("utf8")], { type: "image/svg+xml" }), "second.svg");
+  const response = await fetch(`${baseUrl}/api/icons`, { method: "POST", body: minimal });
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.equal(body.spriteName, "intranet-icons");
+  assert.equal(body.trimTransparent, true);
+  assert.equal(body.icon.name, "second");
+  assert.equal(body.icon.anchorType, "center");
+  assert.deepEqual(body.icon.anchor, [0.5, 0.5]);
+  assert.equal(body.icon.displayWidth, 32);
+  assert.equal(body.icon.displayHeight, 32);
+  assert.equal(body.icon.padding, 6);
+
+  await services.queue.waitForIdle();
+  const manifest = await fetch(`${baseUrl}/api/icons/manifest`).then((result) => result.json());
+  assert.equal(manifest.name, "intranet-icons");
+  assert.equal(manifest.trimTransparent, true);
+  assert.ok(manifest.icons.first);
+  assert.ok(manifest.icons.second);
+});
+
+test("不同用户并发追加不会互相覆盖图标记录", async (context) => {
+  const { config } = await temporaryConfig();
+  const { app, services } = createApp(config);
+  const server: Server = await new Promise((resolve) => {
+    const listening = app.listen(0, () => resolve(listening));
+  });
+  context.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const createForm = (iconId: string, color: string) => {
+    const form = new FormData();
+    form.set("iconId", iconId);
+    form.set("file", new Blob([svg(color).toString("utf8")], { type: "image/svg+xml" }), `${iconId}.svg`);
+    return form;
+  };
+  const responses = await Promise.all([
+    fetch(`${baseUrl}/api/icons`, { method: "POST", body: createForm("user-a", "#315b8a") }),
+    fetch(`${baseUrl}/api/icons`, { method: "POST", body: createForm("user-b", "#1f7a67") })
+  ]);
+  assert.deepEqual(responses.map((response) => response.status), [201, 201]);
+  await services.queue.waitForIdle();
+
+  const records = await fetch(`${baseUrl}/api/icons`).then((result) => result.json());
+  assert.deepEqual(records.map((record: { id: string }) => record.id), ["user-a", "user-b"]);
+  const manifest = await fetch(`${baseUrl}/api/icons/manifest`).then((result) => result.json());
+  assert.ok(manifest.icons["user-a"]);
+  assert.ok(manifest.icons["user-b"]);
+});

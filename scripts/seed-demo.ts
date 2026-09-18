@@ -22,7 +22,7 @@ function svgFor(index: number): Buffer {
 
 async function main() {
   const config = createConfig();
-  const store = new IconStore(config.dataDir);
+  const store = new IconStore(config.originalsDir, config.recordsFile);
   const existing = new Map((await store.list()).map((record) => [record.id, record]));
 
   for (let index = 0; index < 100; index += 1) {
@@ -35,7 +35,7 @@ async function main() {
     const record: IconRecord = {
       id,
       name: index === 0 ? "默认图标" : `演示图标 ${index}`,
-      sourceFile: `${id}.${contentHash.slice(0, 16)}.svg`,
+      sourceFile: `${id}.svg`,
       sourceFormat: "svg",
       anchorType,
       anchor,

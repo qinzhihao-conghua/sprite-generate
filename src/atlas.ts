@@ -91,7 +91,7 @@ export class AtlasPublisher {
       enabled.map(async (record) => ({
         record,
         buffer: await normalizeIcon(
-          await readFile(path.join(this.config.dataDir, "originals", record.sourceFile)),
+          await readFile(path.join(this.config.originalsDir, record.sourceFile)),
           this.config,
           record.padding ?? this.config.padding,
           trimTransparent

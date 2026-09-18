@@ -4,27 +4,65 @@
 
 同一份图集既服务 OpenLayers 地图，也可用于普通页面的按钮、列表、状态卡片和 Canvas。所有消费端只传 `iconId`，不保存或硬编码雪碧图坐标。
 
-## 快速开始
+## 作为项目级工具使用
 
-要求 Node.js 20 或更高版本。
+要求 Node.js 20 或更高版本。本工具不需要 Nginx，也不需要常驻公共服务；每个业务项目保存自己的原图、元数据和生成产物，开发人员只在维护图标时启动本地页面。
+
+构建可直接运行的工具包：
 
 ```bash
-pnpm install
-pnpm seed
-pnpm dev
+pnpm install --frozen-lockfile
+pnpm package
 ```
 
-访问 `http://localhost:3000`。演示包含：
+命令会生成 `packages/sprite-generator/`：
 
-- 100 种图标、1000 个 OpenLayers 点位；
-- 同一图集驱动的普通页面图标墙；
-- CSS 图标卡片悬停删除入口；
-- 批量上传和替换图标表格，可为每张图设置 ID、锚点和边距；
-- 独立图片基线与图集实际请求数对比。
+```text
+packages/sprite-generator/
+├─ sprite-generator.js
+├─ 使用说明.txt
+└─ sprite-generator-runtime/
+```
 
-运行检查：
+把 `sprite-generator.js` 和 `sprite-generator-runtime` 文件夹一起复制到业务项目根目录。运行包已经带有生产依赖，业务项目不需要安装本工具，也不需要执行 npm/pnpm 命令。
+
+业务项目第一次接入时，把完整原图放在 `src/assets/icons`，文件名即默认 `iconId`，然后在业务项目根目录直接运行 JS 文件：
 
 ```bash
+node sprite-generator.js
+```
+
+服务启动时会自动完成以下工作，开发人员不需要额外命令：
+
+- 没有配置时创建默认 `sprite-generator.config.json`；
+- 扫描原图目录并用文件名同步 `iconId` 元数据；
+- 保留已有图标的锚点、边距和显示尺寸；
+- 根据完整原图自动重建当前图集；
+- 启动仅监听 `127.0.0.1:3000` 的本地管理页面。
+
+浏览器访问 `http://127.0.0.1:3000`。追加或替换完成后按 `Ctrl+C` 关闭服务，并把原图、元数据和生成结果一起提交到当前业务项目。
+
+默认会在业务项目根目录创建：
+
+```json
+{
+  "sourceDir": "src/assets/icons",
+  "metadataFile": "src/assets/icons.metadata.json",
+  "outputDir": "public/generated",
+  "spriteName": "sprite",
+  "trimTransparent": false
+}
+```
+
+配置文件名为 `sprite-generator.config.json`，目录都相对于业务项目根目录。需要使用其他目录时，在启动前直接修改这个文件即可。
+
+项目之间的配置、原图和产物完全隔离。原图文件名必须符合 `iconId` 规则；例如 `hospital.svg` 对应 `hospital`。如果不同扩展名使用相同文件名，服务启动扫描时会拒绝导入，避免产生重复 ID。
+
+开发本工具本身时仍可使用：
+
+```bash
+pnpm seed
+pnpm dev
 pnpm check
 ```
 
@@ -49,6 +87,8 @@ pnpm check
 - `src/normalize.ts`：可选透明裁边、等比缩放和透明画布标准化；
 - `src/atlas.ts`：固定网格、内容 Hash、按 iconId 生成 CSS 和覆盖式发布；
 - `src/storage.ts`：原图与元数据的原子写入，以及图标记录和同 ID 原图的物理删除；
+- `src/project.ts`：扫描项目原图并初始化/同步元数据；
+- `src/runtime.ts`：启动前自动扫描、重建并启动本地服务；
 - `src/queue.ts`：上传请求外异步重建，并合并连续任务；
 - `src/app.ts`：上传、manifest、状态接口和缓存响应头；
 - `public/sprite-atlas.js`：地图外 CSS/DOM/Canvas 通用客户端；
@@ -81,7 +121,16 @@ pnpm check
 - 不直接重命名已有 `iconId`。需要更换 ID 时，应新增 ID、迁移业务数据引用，再删除旧 ID。
 - 页面默认 ID 使用“前缀 + 现有图标数量自增”，例如已有 100 个图标时默认从 `icon-101` 开始；前缀可修改。
 
-本系统内追加时不需要手动提交旧 manifest、PNG 和 CSS，因为服务端保留了 `data/icons.json` 与原始图片。运行时部署必须同时持有匹配的 PNG、manifest 与 CSS（如使用类名方案）。若向外部图集追加，仅有生成物不足以无损重建，建议同时保留每个原图及其锚点、边距等元数据。
+本系统内追加时不需要重新选择旧图标，因为完整原图和元数据已经保存在当前业务项目的 `sourceDir` 与 `metadataFile` 中。每次追加都会从项目数据重新生成匹配的 PNG、manifest 与 CSS。
+
+最小追加请求只需要：
+
+- `file`：这次新增图标的原始图片；
+- `iconId`：新的稳定业务 ID。若该 ID 已存在，则语义是替换而不是追加。
+
+其余图标元数据均可省略：`name` 默认等于 `iconId`，`anchorType` 默认 `center`，`displayWidth`/`displayHeight` 默认 `32`，`padding` 默认 `6`。`spriteName` 和 `trimTransparent` 省略时会继承当前图集设置，不会因最小请求而重置。批量接口仍需用 `metadata` 数组把每个 `iconId` 与同顺序的文件对应起来，但每项只写 `iconId` 即可。
+
+开发人员不需要单独携带历史原图；它们跟随业务项目版本库。克隆项目后安装工具包，即可在相同数据基础上继续追加。原图和元数据必须同时提交，只提交生成后的 PNG/manifest/CSS 无法安全恢复后续重建能力。
 
 ### 物理删除
 

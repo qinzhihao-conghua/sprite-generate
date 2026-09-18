@@ -1,5 +1,19 @@
 import path from "node:path";
-import type { SpriteConfig } from "./types.js";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import type { ProjectConfigFile, SpriteConfig } from "./types.js";
+import { validateSpriteName } from "./validation.js";
+
+export const PROJECT_CONFIG_FILE = "sprite-generator.config.json";
+export const DEFAULT_PROJECT_CONFIG: ProjectConfigFile = {
+  sourceDir: "src/assets/icons",
+  metadataFile: "src/assets/icons.metadata.json",
+  outputDir: "public/generated",
+  spriteName: "sprite",
+  trimTransparent: false
+};
+
+const bundledPublicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -7,13 +21,28 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 }
 
 export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfig {
-  const dataDir = path.resolve(overrides.dataDir ?? process.env.SPRITE_DATA_DIR ?? "data");
-  const publicDir = path.resolve(overrides.publicDir ?? process.env.SPRITE_PUBLIC_DIR ?? "public");
+  const projectRoot = path.resolve(overrides.projectRoot ?? process.cwd());
+  const dataDir = path.resolve(overrides.dataDir ?? process.env.SPRITE_DATA_DIR ?? path.join(projectRoot, "data"));
+  const originalsDir = path.resolve(
+    overrides.originalsDir ?? process.env.SPRITE_SOURCE_DIR ?? path.join(dataDir, "originals")
+  );
+  const recordsFile = path.resolve(
+    overrides.recordsFile ?? process.env.SPRITE_METADATA_FILE ?? path.join(dataDir, "icons.json")
+  );
+  const publicDir = path.resolve(overrides.publicDir ?? process.env.SPRITE_PUBLIC_DIR ?? bundledPublicDir);
+  const generatedDir = path.resolve(
+    overrides.generatedDir ?? process.env.SPRITE_GENERATED_DIR ?? path.join(projectRoot, "public", "generated")
+  );
 
   return {
+    projectRoot,
     dataDir,
+    originalsDir,
+    recordsFile,
     publicDir,
-    generatedDir: path.resolve(overrides.generatedDir ?? path.join(publicDir, "generated")),
+    generatedDir,
+    spriteName: overrides.spriteName ?? "sprite",
+    trimTransparent: overrides.trimTransparent ?? false,
     cellSize: overrides.cellSize ?? 64,
     padding: overrides.padding ?? 6,
     pixelRatio: overrides.pixelRatio ?? 2,
@@ -28,4 +57,57 @@ export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfi
     maxBatchFiles: overrides.maxBatchFiles ?? 100,
     maxBatchBytes: overrides.maxBatchBytes ?? 20 * 1024 * 1024
   };
+}
+
+export async function loadProjectConfig(projectRoot = process.cwd()): Promise<SpriteConfig> {
+  const root = path.resolve(projectRoot);
+  const configFile = path.join(root, PROJECT_CONFIG_FILE);
+  let project: ProjectConfigFile;
+  try {
+    project = JSON.parse(await readFile(configFile, "utf8")) as ProjectConfigFile;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`未找到 ${PROJECT_CONFIG_FILE}，请在业务项目根目录直接启动 Sprite Generator 服务`);
+    }
+    throw new Error(`${PROJECT_CONFIG_FILE} 不是合法 JSON`);
+  }
+
+  for (const key of ["sourceDir", "metadataFile", "outputDir"] as const) {
+    if (typeof project[key] !== "string" || !project[key].trim()) {
+      throw new Error(`${PROJECT_CONFIG_FILE} 缺少有效的 ${key}`);
+    }
+  }
+
+  const dataDir = path.dirname(path.resolve(root, project.metadataFile));
+  return createConfig({
+    projectRoot: root,
+    dataDir,
+    originalsDir: path.resolve(root, project.sourceDir),
+    recordsFile: path.resolve(root, project.metadataFile),
+    generatedDir: path.resolve(root, project.outputDir),
+    spriteName: validateSpriteName(project.spriteName),
+    trimTransparent: project.trimTransparent === true
+  });
+}
+
+export async function saveProjectBuildOptions(
+  config: SpriteConfig,
+  spriteName: string,
+  trimTransparent: boolean
+): Promise<void> {
+  config.spriteName = validateSpriteName(spriteName);
+  config.trimTransparent = trimTransparent;
+  const configFile = path.join(config.projectRoot, PROJECT_CONFIG_FILE);
+  let project: ProjectConfigFile;
+  try {
+    project = JSON.parse(await readFile(configFile, "utf8")) as ProjectConfigFile;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  project.spriteName = config.spriteName;
+  project.trimTransparent = trimTransparent;
+  const temporary = `${configFile}.${process.pid}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(project, null, 2)}\n`);
+  await rename(temporary, configFile);
 }
