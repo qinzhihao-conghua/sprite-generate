@@ -6,6 +6,7 @@ import type { IconRecord, ProjectConfigFile } from "./types.js";
 import { inspectImage, validateIconId, validateSpriteName } from "./validation.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".svg", ".png", ".jpg", ".jpeg", ".webp"]);
+const LEGACY_HASHED_SOURCE = /^(.*)\.([a-f\d]{16})$/i;
 
 export interface InitProjectOptions {
   sourceDir?: string;
@@ -60,28 +61,43 @@ export async function initializeProject(
 
   const config = await loadProjectConfig(root);
   await ensureDirectory(config.originalsDir);
+  const store = new IconStore(config.originalsDir, config.recordsFile);
+  const existingRecords = await store.list();
+  const existingById = new Map(existingRecords.map((record) => [record.id, record]));
+  const existingBySourceFile = new Map(
+    existingRecords.map((record) => [record.sourceFile, record])
+  );
   const files = (await readdir(config.originalsDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && SUPPORTED_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
+  const sources = files.flatMap((sourceFile) => {
+    const previous = existingBySourceFile.get(sourceFile);
+    if (previous) return [{ sourceFile, id: validateIconId(previous.id) }];
 
-  const ids = files.map((file) => validateIconId(path.basename(file, path.extname(file))));
-  if (new Set(ids).size !== ids.length) {
+    const stem = path.basename(sourceFile, path.extname(sourceFile));
+    const legacy = LEGACY_HASHED_SOURCE.exec(stem);
+    const legacyId = legacy?.[1];
+    if (legacyId && existingById.has(legacyId)) {
+      // Older versions stored sources as iconId.<content-hash>.<ext>. Keep the file
+      // referenced by metadata and ignore superseded siblings without deleting them.
+      return [];
+    }
+    return [{ sourceFile, id: validateIconId(stem) }];
+  });
+
+  if (new Set(sources.map((source) => source.id)).size !== sources.length) {
     throw new Error("原图目录中存在同名但扩展名不同的文件，无法生成唯一 iconId");
   }
 
-  const store = new IconStore(config.originalsDir, config.recordsFile);
-  const existing = new Map((await store.list()).map((record) => [record.id, record]));
   let added = 0;
   let updated = 0;
   const records: IconRecord[] = [];
-  for (let index = 0; index < files.length; index += 1) {
-    const sourceFile = files[index]!;
-    const id = ids[index]!;
+  for (const { sourceFile, id } of sources) {
     const source = await readFile(path.join(config.originalsDir, sourceFile));
     const inspected = await inspectImage(source, sourceFile, config);
     const contentHash = sha256(inspected.source);
-    const previous = existing.get(id);
+    const previous = existingById.get(id);
     const changed = !previous || previous.contentHash !== contentHash || previous.sourceFile !== sourceFile;
     const now = new Date().toISOString();
     if (previous) {

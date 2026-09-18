@@ -1,7 +1,7 @@
 node_modules/
 .pnpm-store/
+.build/
 dist/
-packages/
 data/
 public/generated/
 coverage/

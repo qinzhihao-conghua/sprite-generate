@@ -6,7 +6,7 @@ import test from "node:test";
 import { loadProjectConfig, saveProjectBuildOptions } from "../src/config.js";
 import { initializeProject } from "../src/project.js";
 import { prepareProject } from "../src/runtime.js";
-import { IconStore } from "../src/storage.js";
+import { IconStore, sha256 } from "../src/storage.js";
 import { svg } from "./helpers.js";
 
 test("服务启动准备会自动扫描原图、保留元数据并构建图集", async () => {
@@ -62,4 +62,49 @@ test("服务启动扫描拒绝无法作为 iconId 的原图文件名", async () 
   await initializeProject(root, { sourceDir: "icons" });
   await writeFile(path.join(root, "icons", "中文 图标.svg"), svg());
   await assert.rejects(() => initializeProject(root), /iconId/);
+});
+
+test("启动扫描兼容历史 Hash 原图名并忽略未引用的旧版本", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "sprite-project-legacy-"));
+  await initializeProject(root, {
+    sourceDir: "icons",
+    metadataFile: "icons.metadata.json"
+  });
+  const currentSource = svg("#315b8a");
+  const staleSource = svg("#e95e3e");
+  const currentFile = "hospital.0123456789abcdef.svg";
+  await writeFile(path.join(root, "icons", currentFile), currentSource);
+  await writeFile(path.join(root, "icons", "hospital.fedcba9876543210.svg"), staleSource);
+
+  const config = await loadProjectConfig(root);
+  const store = new IconStore(config.originalsDir, config.recordsFile);
+  const now = new Date().toISOString();
+  await store.replaceAll([
+    {
+      id: "hospital",
+      name: "医院",
+      sourceFile: currentFile,
+      sourceFormat: "svg",
+      anchorType: "bottom",
+      anchor: [0.5, 1],
+      displayWidth: 36,
+      displayHeight: 36,
+      padding: 10,
+      enabled: true,
+      contentHash: sha256(currentSource),
+      createdAt: now,
+      updatedAt: now
+    }
+  ]);
+
+  const initialized = await initializeProject(root);
+  assert.deepEqual(
+    { imported: initialized.imported, added: initialized.added, updated: initialized.updated },
+    { imported: 1, added: 0, updated: 0 }
+  );
+  const [record] = await store.list();
+  assert.equal(record?.id, "hospital");
+  assert.equal(record?.sourceFile, currentFile);
+  assert.equal(record?.padding, 10);
+  assert.equal(record?.anchorType, "bottom");
 });

@@ -8,23 +8,23 @@
 
 要求 Node.js 20 或更高版本。本工具不需要 Nginx，也不需要常驻公共服务；每个业务项目保存自己的原图、元数据和生成产物，开发人员只在维护图标时启动本地页面。
 
-构建可直接运行的工具包：
+构建自包含的单文件工具：
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm package
+pnpm build
 ```
 
-命令会生成 `packages/sprite-generator/`：
+命令会生成入口文件：
 
 ```text
-packages/sprite-generator/
-├─ sprite-generator.js
-├─ 使用说明.txt
-└─ sprite-generator-runtime/
+dist/
+└─ sprite-generator.js
 ```
 
-把 `sprite-generator.js` 和 `sprite-generator-runtime` 文件夹一起复制到业务项目根目录。运行包已经带有生产依赖，业务项目不需要安装本工具，也不需要执行 npm/pnpm 命令。
+只需把 `dist/sprite-generator.js` 复制到业务项目根目录。这个 JS 已经压缩嵌入服务代码、管理页面、OpenLayers、Sharp 及其原生图像库；业务项目不需要复制 `node_modules`，也不需要执行 npm/pnpm 安装命令。
+
+由于 Sharp 带有原生模块，单文件产物绑定构建时的操作系统和 CPU 架构。例如在 Windows x64 上构建的入口应在 Windows x64 上运行；要支持其他平台，应在对应平台重新执行 `pnpm build`。入口第一次启动时会把内嵌运行内容释放到操作系统临时缓存，后续启动直接复用该缓存。
 
 业务项目第一次接入时，把完整原图放在 `src/assets/icons`，文件名即默认 `iconId`，然后在业务项目根目录直接运行 JS 文件：
 
@@ -94,6 +94,8 @@ pnpm check
 - `public/sprite-atlas.js`：地图外 CSS/DOM/Canvas 通用客户端；
 - `public/openlayers-adapter.js`：按 iconId 缓存 OpenLayers Style；
 - `public/mapbox-adapter.js`：一次加载图集并用 `addImage()` 注册；
+- `scripts/build-standalone.ts`：把服务、页面和生产依赖压缩嵌入单文件入口；
+- `scripts/clean-dist.ts`：清理临时编译目录和旧构建产物；
 - `scripts/seed-demo.ts`：生成 100 种演示图标；
 - `test/`：标准化、坐标、版本、缓存、安全及普通页面映射测试。
 
