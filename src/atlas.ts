@@ -26,10 +26,12 @@ export interface CurrentPointer {
 
 const CSS_FORMAT_VERSION = 2;
 
+/** 为任意合法 iconId 生成无需 CSS 转义的属性选择器。 */
 function iconClassSelector(iconId: string): string {
   return `[class~="${iconId}"]`;
 }
 
+/** 根据 manifest 坐标生成可直接按 iconId 使用的 CSS 雪碧图规则。 */
 function createStylesheet(
   records: IconRecord[],
   icons: SpriteManifest["icons"],
@@ -62,8 +64,10 @@ function createStylesheet(
 export class AtlasPublisher {
   private publishing: Promise<PublishResult> | undefined;
 
+  /** 创建使用指定项目配置的图集发布器。 */
   constructor(private readonly config: SpriteConfig) {}
 
+  /** 发布当前图标集合，并复用正在进行中的同一发布任务。 */
   publish(
     records: IconRecord[],
     spriteName = "sprite",
@@ -76,6 +80,7 @@ export class AtlasPublisher {
     return this.publishing;
   }
 
+  /** 标准化全部启用图标，生成 PNG、manifest、CSS 并原子发布。 */
   private async build(
     records: IconRecord[],
     spriteName: string,
@@ -231,6 +236,7 @@ export class AtlasPublisher {
     return { manifest, manifestUrl, reused: false };
   }
 
+  /** 用暂存目录替换 current，并在替换失败时恢复上一份产物。 */
   private async replaceCurrentDirectory(currentDir: string, stagingDir: string): Promise<void> {
     const replacedDir = path.join(this.config.generatedDir, `.replaced-${randomUUID()}`);
     let hadCurrent = false;

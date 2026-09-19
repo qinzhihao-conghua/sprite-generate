@@ -1,3 +1,4 @@
+/** 将图集中的每个单元格注册或更新为 Mapbox 可引用的图片。 */
 export async function registerMapboxAtlasImages(map, atlas) {
   if (!atlas.image) await atlas.loadImage();
   for (const [iconId, config] of Object.entries(atlas.manifest.icons)) {
@@ -14,6 +15,7 @@ export async function registerMapboxAtlasImages(map, atlas) {
   }
 }
 
+/** 创建按 Feature.iconId 选择图片的 Mapbox symbol layer 配置。 */
 export function mapboxSymbolLayer(source, id = "point-icons") {
   return {
     id,

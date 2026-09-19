@@ -26,10 +26,12 @@ export interface InitProjectResult {
   updated: number;
 }
 
+/** 将项目配置中的路径统一写成跨平台的正斜杠形式。 */
 function relativeProjectPath(value: string): string {
   return value.replaceAll("\\", "/");
 }
 
+/** 按配置初始化项目目录、扫描原图并同步完整元数据。 */
 export async function initializeProject(
   projectRoot = process.cwd(),
   options: InitProjectOptions = {}

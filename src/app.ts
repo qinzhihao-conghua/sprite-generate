@@ -29,16 +29,19 @@ interface UploadMetadata {
   padding?: unknown;
 }
 
+/** 将 Promise 路由包装成 Express 可捕获异常的请求处理器。 */
 function asyncRoute(handler: RequestHandler): RequestHandler {
   return (request, response, next) => {
     Promise.resolve(handler(request, response, next)).catch(next);
   };
 }
 
+/** 将表单或 JSON 中的常见真值转换为布尔值。 */
 function parseBoolean(value: unknown): boolean {
   return value === true || value === "true" || value === "1" || value === "on";
 }
 
+/** 创建 API、生成物和管理页面共用的 Express 应用。 */
 export function createApp(config: SpriteConfig) {
   const app = express();
   const store = new IconStore(config.originalsDir, config.recordsFile);
@@ -49,6 +52,7 @@ export function createApp(config: SpriteConfig) {
     limits: { fileSize: config.maxUploadBytes, files: config.maxBatchFiles, fields: 20 }
   });
 
+  /** 合并本次请求、当前构建指针和项目默认值中的构建选项。 */
   async function currentBuildOptions(body: Record<string, unknown> | undefined) {
     const current = await readJson<CurrentPointer | null>(
       path.join(config.generatedDir, "current", "current.json"),
@@ -66,6 +70,7 @@ export function createApp(config: SpriteConfig) {
     };
   }
 
+  /** 校验上传文件与元数据，并构造等待持久化的图标记录。 */
   async function prepareIcon(
     file: Express.Multer.File,
     metadata: UploadMetadata,

@@ -17,11 +17,13 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfigFile = {
 const bundledPublicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const configMutationQueues = new Map<string, Promise<void>>();
 
+/** 将正整数字符串转换为数值；无效值回退到默认配置。 */
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/** 合并默认值、环境变量和调用方覆盖项，生成完整运行配置。 */
 export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfig {
   const projectRoot = path.resolve(overrides.projectRoot ?? process.cwd());
   const dataDir = path.resolve(overrides.dataDir ?? process.env.SPRITE_DATA_DIR ?? path.join(projectRoot, "data"));
@@ -61,6 +63,7 @@ export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfi
   };
 }
 
+/** 读取项目配置文件，并把其中的相对目录解析为绝对路径。 */
 export async function loadProjectConfig(projectRoot = process.cwd()): Promise<SpriteConfig> {
   const root = path.resolve(projectRoot);
   const configFile = path.join(root, PROJECT_CONFIG_FILE);
@@ -92,6 +95,7 @@ export async function loadProjectConfig(projectRoot = process.cwd()): Promise<Sp
   });
 }
 
+/** 串行保存图集名称和裁边选项，避免并发请求覆盖配置临时文件。 */
 export async function saveProjectBuildOptions(
   config: SpriteConfig,
   spriteName: string,

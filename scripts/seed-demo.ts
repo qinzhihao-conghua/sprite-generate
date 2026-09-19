@@ -5,6 +5,7 @@ import type { Anchor, AnchorType, IconRecord } from "../src/types.js";
 
 const colors = ["#e95e3e", "#f2aa4c", "#1f7a67", "#315b8a", "#82589f", "#bd3f62", "#4f772d"];
 
+/** 为指定序号生成颜色和形状稳定的演示 SVG。 */
 function svgFor(index: number): Buffer {
   const color = colors[index % colors.length];
   const secondary = colors[(index + 3) % colors.length];
@@ -20,6 +21,7 @@ function svgFor(index: number): Buffer {
   );
 }
 
+/** 写入演示原图和元数据，并发布一份可直接预览的图集。 */
 async function main() {
   const config = createConfig();
   const store = new IconStore(config.originalsDir, config.recordsFile);

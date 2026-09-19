@@ -21,11 +21,13 @@ export class RebuildQueue {
   private worker: Promise<void> | undefined;
   private status: QueueStatus = { state: "idle", updatedAt: new Date().toISOString() };
 
+  /** 创建绑定图标仓库与图集发布器的单进程重建队列。 */
   constructor(
     private readonly store: IconStore,
     private readonly publisher: AtlasPublisher
   ) {}
 
+  /** 合并连续请求，并使用最后一次提交的全局构建选项重建。 */
   enqueue(spriteName = "sprite", trimTransparent = false): void {
     this.pending = true;
     this.pendingSpriteName = spriteName;
@@ -38,15 +40,18 @@ export class RebuildQueue {
     }
   }
 
+  /** 返回当前队列状态的只读副本。 */
   getStatus(): QueueStatus {
     return { ...this.status };
   }
 
+  /** 等待当前工作器处理完所有合并后的重建任务。 */
   async waitForIdle(): Promise<QueueStatus> {
     await this.worker;
     return this.getStatus();
   }
 
+  /** 循环消费待处理标记，并更新成功或失败状态。 */
   private async run(): Promise<void> {
     while (this.pending) {
       this.pending = false;

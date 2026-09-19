@@ -9,6 +9,7 @@ export interface StartProjectServerOptions {
   port?: number;
 }
 
+/** 初始化当前项目、加载配置并在有原图时发布当前图集。 */
 export async function prepareProject(projectRoot = process.cwd()) {
   const initialized = await initializeProject(projectRoot);
   const config = await loadProjectConfig(projectRoot);
@@ -24,6 +25,7 @@ export async function prepareProject(projectRoot = process.cwd()) {
   return { ...application, config, initialized, records };
 }
 
+/** 启动仅供本机维护使用的 HTTP 服务，并输出配置的实际路径。 */
 export async function startProjectServer(
   options: StartProjectServerOptions = {}
 ): Promise<Server> {

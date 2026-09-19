@@ -32,6 +32,7 @@ interface SourcePackage {
   dependencies: Record<string, string>;
 }
 
+/** 在指定目录执行外部命令，并将非零退出码转换为异常。 */
 function run(command: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const executable = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : command;
@@ -49,9 +50,11 @@ function run(command: string, args: string[], cwd: string): Promise<void> {
   });
 }
 
+/** 递归收集运行目录中的普通文件，生成稳定的归档输入顺序。 */
 async function collectFiles(root: string): Promise<Array<{ name: string; data: Buffer }>> {
   const files: Array<{ name: string; data: Buffer }> = [];
 
+  /** 深度遍历当前目录，并跳过不需要进入运行包的 npm 辅助文件。 */
   async function visit(directory: string): Promise<void> {
     const entries = await readdir(directory, { withFileTypes: true });
     entries.sort((left, right) => left.name.localeCompare(right.name));
@@ -74,6 +77,7 @@ async function collectFiles(root: string): Promise<Array<{ name: string; data: B
   return files;
 }
 
+/** 将文件列表编码为轻量的 SGR1 二进制归档。 */
 function createArchive(files: Array<{ name: string; data: Buffer }>): Buffer {
   const chunks: Buffer[] = [];
   const header = Buffer.allocUnsafe(8);
@@ -91,6 +95,7 @@ function createArchive(files: Array<{ name: string; data: Buffer }>): Buffer {
   return Buffer.concat(chunks);
 }
 
+/** 生成负责校验平台、释放缓存运行时并启动服务的单文件入口。 */
 function createLauncher(payload: string, hash: string, platform: string, arch: string): string {
   return `/* Sprite Generator self-contained runtime. Built for ${platform}-${arch}. */
 void (async () => {

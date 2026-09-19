@@ -20,12 +20,14 @@ const existingIds = new Set();
 let batchItems = [];
 
 /* standalone:openlayers:start */
+/** 为地图演示生成可重复的伪随机小数。 */
 function seeded(index) {
   const value = Math.sin(index * 999.91) * 43758.5453;
   return value - Math.floor(value);
 }
 /* standalone:openlayers:end */
 
+/** 更新图标数量、资源请求数和可选地图点位指标。 */
 function showMetrics(iconCount) {
   const resources = performance.getEntriesByType("resource");
   const manifestRequests = resources.filter((item) => item.name.includes("/api/icons/manifest")).length;
@@ -41,6 +43,7 @@ function showMetrics(iconCount) {
     <div><strong>${iconCount}</strong><span>独立图片基线请求</span></div>`;
 }
 
+/** 按 manifest 中的 iconId 重绘 CSS 图标墙。 */
 function renderGallery(iconIds) {
   const fragment = document.createDocumentFragment();
   for (const iconId of iconIds) {
@@ -70,6 +73,7 @@ function renderGallery(iconIds) {
 }
 
 /* standalone:openlayers:start */
+/** 使用同一份图集在 OpenLayers 中渲染 1000 个演示点位。 */
 async function renderMap(iconIds) {
   const { createOpenLayersStyleFactory } = await import("./openlayers-adapter.js");
   const { Map, View, Feature } = globalThis.ol;
@@ -100,10 +104,12 @@ async function renderMap(iconIds) {
 }
 /* standalone:openlayers:end */
 
+/** 移除文件名最后一个扩展名，作为默认展示名称。 */
 function baseName(filename) {
   return filename.replace(/\.[^.]+$/, "");
 }
 
+/** 根据前缀和现有数量生成当前批次内不重复的默认 iconId。 */
 function candidateId(index, used) {
   const prefix = idPrefixInput.value.trim() || "icon";
   let number = existingIds.size + index + 1;
@@ -116,6 +122,7 @@ function candidateId(index, used) {
   return candidate;
 }
 
+/** 将当前 manifest 的三类生成物路径写入页面链接。 */
 function renderOutputPaths(manifest) {
   spriteImagePath.href = manifest.image;
   spriteImagePath.textContent = manifest.image;
@@ -125,12 +132,14 @@ function renderOutputPaths(manifest) {
   spriteStylesheetPath.textContent = manifest.stylesheet;
 }
 
+/** 创建元素并批量赋值 DOM 属性。 */
 function field(tag, attributes = {}) {
   const element = document.createElement(tag);
   Object.assign(element, attributes);
   return element;
 }
 
+/** 统计当前批次中的新增与替换数量。 */
 function updateBatchSummary() {
   const added = batchItems.filter((item) => !existingIds.has(item.iconId)).length;
   const replaced = batchItems.length - added;
@@ -139,6 +148,7 @@ function updateBatchSummary() {
     : "尚未选择图片";
 }
 
+/** 根据已选文件和逐图设置重绘批量编辑表格。 */
 function renderBatchRows() {
   const fragment = document.createDocumentFragment();
   batchItems.forEach((item) => {
@@ -171,6 +181,7 @@ function renderBatchRows() {
       pattern: "[A-Za-z0-9][A-Za-z0-9_-]{0,63}",
       title: "以字母或数字开头，只能包含字母、数字、短横线和下划线"
     });
+    /** 根据输入的 iconId 刷新当前行的新增/替换标记。 */
     const refreshAction = () => {
       item.iconId = idInput.value.trim();
       const replacing = existingIds.has(item.iconId);
@@ -235,6 +246,7 @@ idPrefixInput.addEventListener("input", () => {
   renderBatchRows();
 });
 
+/** 轮询后台队列，直到重建成功、失败或超时。 */
 async function waitForRebuild() {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const response = await fetch("/api/icons/rebuild", { cache: "no-store" });

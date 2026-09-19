@@ -3,6 +3,7 @@ import type { SpriteConfig } from "./types.js";
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 } as const;
 
+/** 将任意受支持原图等比缩放并放入固定透明单元格。 */
 export async function normalizeIcon(
   source: Buffer,
   config: SpriteConfig,

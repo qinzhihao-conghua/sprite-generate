@@ -15,6 +15,7 @@ const FORBIDDEN_SVG = [
   /@import\b/i
 ];
 
+/** 校验并规范化稳定的业务图标 ID。 */
 export function validateIconId(value: unknown): string {
   const iconId = String(value ?? "").trim();
   if (!ICON_ID_PATTERN.test(iconId)) {
@@ -27,6 +28,7 @@ export function validateIconId(value: unknown): string {
   return iconId;
 }
 
+/** 校验雪碧图基础名称，并在未提供时使用默认名称。 */
 export function validateSpriteName(value: unknown, fallback = "sprite"): string {
   const name = String(value ?? fallback).trim() || fallback;
   if (!/^[\p{L}\p{N}][\p{L}\p{N}_-]{0,63}$/u.test(name)) {
@@ -39,6 +41,7 @@ export function validateSpriteName(value: unknown, fallback = "sprite"): string 
   return name;
 }
 
+/** 解析单个图标的显示尺寸。 */
 export function parseDisplaySize(value: unknown, fallback = 32): number {
   if (value === undefined || value === null || value === "") return fallback;
   const size = Number(value);
@@ -48,6 +51,7 @@ export function parseDisplaySize(value: unknown, fallback = 32): number {
   return size;
 }
 
+/** 解析并限制图标在 64×64 单元格中的透明边距。 */
 export function parsePadding(value: unknown, fallback = 6): number {
   if (value === undefined || value === null || value === "") return fallback;
   const padding = Number(value);
@@ -57,6 +61,7 @@ export function parsePadding(value: unknown, fallback = 6): number {
   return padding;
 }
 
+/** 将预设或自定义锚点字段转换为统一的分数坐标。 */
 export function parseAnchor(
   anchorTypeValue: unknown,
   anchorXValue: unknown,
@@ -83,6 +88,7 @@ export function parseAnchor(
   return { anchorType, anchor: [x, y] };
 }
 
+/** 检查 SVG 文本并拒绝脚本、事件属性和外部资源引用。 */
 function validateSvg(source: Buffer): Buffer {
   const text = source.toString("utf8");
   if (!/<svg\b/i.test(text) || text.includes("\u0000")) {
@@ -98,6 +104,7 @@ function validateSvg(source: Buffer): Buffer {
   return Buffer.from(text.trim(), "utf8");
 }
 
+/** 按真实解码结果识别、校验并规范化上传的图片源数据。 */
 export async function inspectImage(
   source: Buffer,
   originalName: string,
