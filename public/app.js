@@ -1,11 +1,4 @@
 import { SpriteAtlas } from "./sprite-atlas.js";
-import { createOpenLayersStyleFactory } from "./openlayers-adapter.js";
-
-const { Map, View, Feature } = globalThis.ol;
-const { Point } = globalThis.ol.geom;
-const { Tile: TileLayer, Vector: VectorLayer } = globalThis.ol.layer;
-const { OSM, Vector: VectorSource } = globalThis.ol.source;
-const { fromLonLat } = globalThis.ol.proj;
 
 const status = document.querySelector("#status");
 const gallery = document.querySelector("#gallery");
@@ -26,19 +19,24 @@ const atlas = new SpriteAtlas();
 const existingIds = new Set();
 let batchItems = [];
 
+/* standalone:openlayers:start */
 function seeded(index) {
   const value = Math.sin(index * 999.91) * 43758.5453;
   return value - Math.floor(value);
 }
+/* standalone:openlayers:end */
 
 function showMetrics(iconCount) {
   const resources = performance.getEntriesByType("resource");
   const manifestRequests = resources.filter((item) => item.name.includes("/api/icons/manifest")).length;
   const stylesheetRequests = resources.filter((item) => item.name.includes("/api/icons/stylesheet")).length;
   const atlasRequests = resources.filter((item) => item.name.includes("/generated/current/") && item.name.endsWith(".png")).length;
+  const mapMetric = document.querySelector("#map")
+    ? "<div><strong>1000</strong><span>地图点位</span></div>"
+    : "";
   metrics.innerHTML = `
     <div><strong>${iconCount}</strong><span>图标种类</span></div>
-    <div><strong>1000</strong><span>地图点位</span></div>
+    ${mapMetric}
     <div><strong>${manifestRequests + stylesheetRequests + atlasRequests}</strong><span>实际图标请求</span></div>
     <div><strong>${iconCount}</strong><span>独立图片基线请求</span></div>`;
 }
@@ -71,7 +69,14 @@ function renderGallery(iconIds) {
   gallery.replaceChildren(fragment);
 }
 
-function renderMap(iconIds) {
+/* standalone:openlayers:start */
+async function renderMap(iconIds) {
+  const { createOpenLayersStyleFactory } = await import("./openlayers-adapter.js");
+  const { Map, View, Feature } = globalThis.ol;
+  const { Point } = globalThis.ol.geom;
+  const { Tile: TileLayer, Vector: VectorLayer } = globalThis.ol.layer;
+  const { OSM, Vector: VectorSource } = globalThis.ol.source;
+  const { fromLonLat } = globalThis.ol.proj;
   const features = Array.from({ length: 1000 }, (_, index) => {
     const longitude = 116.397 + (seeded(index) - 0.5) * 0.5;
     const latitude = 39.908 + (seeded(index + 1000) - 0.5) * 0.35;
@@ -93,6 +98,7 @@ function renderMap(iconIds) {
   });
   document.querySelector("#style-cache-count").textContent = String(getStyle.cache.size || iconIds.length);
 }
+/* standalone:openlayers:end */
 
 function baseName(filename) {
   return filename.replace(/\.[^.]+$/, "");
@@ -312,9 +318,13 @@ try {
   renderOutputPaths(manifest);
   const iconIds = Object.keys(manifest.icons);
   renderGallery(iconIds);
-  renderMap(iconIds);
+  /* standalone:openlayers:start */
+  if (document.querySelector("#map") && globalThis.ol) await renderMap(iconIds);
+  /* standalone:openlayers:end */
   requestAnimationFrame(() => showMetrics(iconIds.length));
-  status.textContent = `PNG 图集 ${manifest.name} · ${manifest.version} 已加载，可同时用于地图和普通页面。`;
+  status.textContent = document.querySelector("#map")
+    ? `PNG 图集 ${manifest.name} · ${manifest.version} 已加载，可同时用于地图和普通页面。`
+    : `PNG 图集 ${manifest.name} · ${manifest.version} 已加载。`;
 } catch (error) {
   status.textContent = `${error.message}。请先把原图放入项目目录并运行 sprite-generator init/build，或直接上传第一张图标。`;
 }

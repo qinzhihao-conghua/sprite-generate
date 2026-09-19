@@ -22,7 +22,7 @@ dist/
 └─ sprite-generator.js
 ```
 
-只需把 `dist/sprite-generator.js` 复制到业务项目根目录。这个 JS 已经压缩嵌入服务代码、管理页面、OpenLayers、Sharp 及其原生图像库；业务项目不需要复制 `node_modules`，也不需要执行 npm/pnpm 安装命令。
+只需把 `dist/sprite-generator.js` 复制到业务项目根目录。这个 JS 已经压缩嵌入服务代码、管理页面、Sharp 及其原生图像库；业务项目不需要复制 `node_modules`，也不需要执行 npm/pnpm 安装命令。OpenLayers 地图只作为源码开发模式下的联调演示，不进入最终单文件产物。
 
 由于 Sharp 带有原生模块，单文件产物绑定构建时的操作系统和 CPU 架构。例如在 Windows x64 上构建的入口应在 Windows x64 上运行；要支持其他平台，应在对应平台重新执行 `pnpm build`。入口第一次启动时会把内嵌运行内容释放到操作系统临时缓存，后续启动直接复用该缓存。
 
@@ -65,6 +65,8 @@ pnpm seed
 pnpm dev
 pnpm check
 ```
+
+开发模式的管理页会额外加载 OpenLayers 并展示 1000 个地图点位；最终单文件管理页只保留上传、生成物路径和 CSS 图标墙，不携带 OpenLayers 的脚本、样式、适配器或 npm 依赖。
 
 ## 实现结构
 

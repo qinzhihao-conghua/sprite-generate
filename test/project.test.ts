@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -107,4 +107,31 @@ test("启动扫描兼容历史 Hash 原图名并忽略未引用的旧版本", as
   assert.equal(record?.sourceFile, currentFile);
   assert.equal(record?.padding, 10);
   assert.equal(record?.anchorType, "bottom");
+});
+
+test("项目初始化只读取配置文件指定的目录且不会扫描父目录", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "sprite-project-boundary-"));
+  await initializeProject(parent, { sourceDir: "icons" });
+  await writeFile(path.join(parent, "icons", "parent-icon.svg"), svg());
+  await initializeProject(parent);
+
+  const child = path.join(parent, "dist");
+  await mkdir(child);
+  await writeFile(
+    path.join(child, "sprite-generator.config.json"),
+    `${JSON.stringify({
+      sourceDir: "configured/source",
+      metadataFile: "configured/metadata.json",
+      outputDir: "configured/output",
+      spriteName: "configured-sprite",
+      trimTransparent: false
+    })}\n`
+  );
+  const prepared = await prepareProject(child);
+  assert.equal(prepared.config.projectRoot, child);
+  assert.equal(prepared.config.originalsDir, path.join(child, "configured", "source"));
+  assert.equal(prepared.config.recordsFile, path.join(child, "configured", "metadata.json"));
+  assert.equal(prepared.config.generatedDir, path.join(child, "configured", "output"));
+  assert.equal(prepared.records.length, 0);
+  assert.equal(prepared.initialized.imported, 0);
 });

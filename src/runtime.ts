@@ -38,7 +38,10 @@ export async function startProjectServer(
   return await new Promise<Server>((resolve, reject) => {
     const server = prepared.app.listen(port, host, () => {
       console.log(`Sprite Generator 已启动：http://${host}:${port}`);
-      console.log(`项目目录：${prepared.config.projectRoot}`);
+      console.log(`配置基准目录：${prepared.config.projectRoot}`);
+      console.log(`原图目录（sourceDir）：${prepared.config.originalsDir}`);
+      console.log(`元数据文件（metadataFile）：${prepared.config.recordsFile}`);
+      console.log(`输出目录（outputDir）：${prepared.config.generatedDir}`);
       console.log(`已读取 ${prepared.records.length} 张原图；完成维护后可按 Ctrl+C 关闭。`);
       resolve(server);
     });

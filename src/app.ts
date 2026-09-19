@@ -283,17 +283,36 @@ export function createApp(config: SpriteConfig) {
       }
     })
   );
-  const olPackageDir = path.dirname(fileURLToPath(import.meta.resolve("ol")));
-  app.use("/vendor/ol", express.static(olPackageDir, { immutable: true, maxAge: "1y" }));
+  if (process.env.SPRITE_STANDALONE !== "1") {
+    const olPackageDir = path.dirname(fileURLToPath(import.meta.resolve("ol")));
+    app.use("/vendor/ol", express.static(olPackageDir, { immutable: true, maxAge: "1y" }));
+  }
   app.use(express.static(config.publicDir, { extensions: ["html"] }));
 
   app.use(((error, _request, response, _next) => {
     const multerError = error instanceof multer.MulterError;
-    const statusCode = multerError ? 413 : error instanceof AppError ? error.statusCode : 500;
-    const code = multerError ? error.code : error instanceof AppError ? error.code : "INTERNAL_ERROR";
+    const httpStatus = Number((error as { status?: unknown })?.status);
+    const statusCode = multerError
+      ? 413
+      : error instanceof AppError
+        ? error.statusCode
+        : Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599
+          ? httpStatus
+          : 500;
+    const code = multerError
+      ? error.code
+      : error instanceof AppError
+        ? error.code
+        : statusCode === 404
+          ? "NOT_FOUND"
+          : "INTERNAL_ERROR";
     response.status(statusCode).json({
       error: code,
-      message: statusCode === 500 ? "服务器内部错误" : error.message
+      message: statusCode === 500
+        ? "服务器内部错误"
+        : statusCode === 404
+          ? "资源不存在"
+          : error.message
     });
   }) satisfies ErrorRequestHandler);
 

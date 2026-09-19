@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfigFile = {
 };
 
 const bundledPublicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+const configMutationQueues = new Map<string, Promise<void>>();
 
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -95,19 +97,30 @@ export async function saveProjectBuildOptions(
   spriteName: string,
   trimTransparent: boolean
 ): Promise<void> {
-  config.spriteName = validateSpriteName(spriteName);
-  config.trimTransparent = trimTransparent;
   const configFile = path.join(config.projectRoot, PROJECT_CONFIG_FILE);
-  let project: ProjectConfigFile;
+  const validatedName = validateSpriteName(spriteName);
+  const previous = configMutationQueues.get(configFile) ?? Promise.resolve();
+  const mutation = previous.then(async () => {
+    config.spriteName = validatedName;
+    config.trimTransparent = trimTransparent;
+    let project: ProjectConfigFile;
+    try {
+      project = JSON.parse(await readFile(configFile, "utf8")) as ProjectConfigFile;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    project.spriteName = config.spriteName;
+    project.trimTransparent = trimTransparent;
+    const temporary = `${configFile}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(project, null, 2)}\n`);
+    await rename(temporary, configFile);
+  });
+  const settled = mutation.then(() => undefined, () => undefined);
+  configMutationQueues.set(configFile, settled);
   try {
-    project = JSON.parse(await readFile(configFile, "utf8")) as ProjectConfigFile;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
+    await mutation;
+  } finally {
+    if (configMutationQueues.get(configFile) === settled) configMutationQueues.delete(configFile);
   }
-  project.spriteName = config.spriteName;
-  project.trimTransparent = trimTransparent;
-  const temporary = `${configFile}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(project, null, 2)}\n`);
-  await rename(temporary, configFile);
 }

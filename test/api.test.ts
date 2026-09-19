@@ -227,3 +227,17 @@ test("不同用户并发追加不会互相覆盖图标记录", async (context) =
   assert.ok(manifest.icons["user-a"]);
   assert.ok(manifest.icons["user-b"]);
 });
+
+test("缺失的生成静态文件返回 404 而不是 500", async (context) => {
+  const { config } = await temporaryConfig();
+  const { app } = createApp(config);
+  const server: Server = await new Promise((resolve) => {
+    const listening = app.listen(0, () => resolve(listening));
+  });
+  context.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/generated/current/missing.png`);
+  assert.equal(response.status, 404);
+});

@@ -22,6 +22,8 @@ const compiledDir = path.join(projectRoot, ".build");
 const distDir = path.join(projectRoot, "dist");
 const outputFile = path.join(distDir, "sprite-generator.js");
 const stageRoot = await mkdtemp(path.join(os.tmpdir(), "sprite-generator-build-"));
+const OPENLAYERS_BLOCK = /\s*<!-- standalone:openlayers:start -->[\s\S]*?<!-- standalone:openlayers:end -->\s*/g;
+const OPENLAYERS_SCRIPT_BLOCK = /\s*\/\* standalone:openlayers:start \*\/[\s\S]*?\/\* standalone:openlayers:end \*\/\s*/g;
 
 interface SourcePackage {
   name: string;
@@ -106,6 +108,7 @@ void (async () => {
   }
 
   const hash = ${JSON.stringify(hash)};
+  process.env.SPRITE_STANDALONE = "1";
   const runtimeDir = path.join(os.tmpdir(), \`sprite-generator-runtime-\${expectedPlatform}-\${expectedArch}-\${hash}\`);
   const marker = path.join(runtimeDir, ".complete");
   let ready = false;
@@ -169,16 +172,28 @@ try {
     type: "module",
     main: "dist/server.js",
     engines: sourcePackage.engines,
-    dependencies: sourcePackage.dependencies
+    dependencies: Object.fromEntries(
+      Object.entries(sourcePackage.dependencies).filter(([name]) => name !== "ol")
+    )
   };
+
+  const standaloneIndex = (await readFile(path.join(projectRoot, "public", "index.html"), "utf8"))
+    .replace(OPENLAYERS_BLOCK, "\n");
+  const standaloneApp = (await readFile(path.join(projectRoot, "public", "app.js"), "utf8"))
+    .replace(OPENLAYERS_SCRIPT_BLOCK, "\n");
 
   await Promise.all([
     cp(compiledDir, path.join(stageRoot, "dist"), { recursive: true }),
     cp(path.join(projectRoot, "public"), path.join(stageRoot, "public"), {
       recursive: true,
-      filter: (source) => path.basename(source) !== "generated"
+      filter: (source) =>
+        path.basename(source) !== "generated" && path.basename(source) !== "openlayers-adapter.js"
     }),
     writeFile(path.join(stageRoot, "package.json"), `${JSON.stringify(runtimePackage, null, 2)}\n`)
+  ]);
+  await Promise.all([
+    writeFile(path.join(stageRoot, "public", "index.html"), standaloneIndex),
+    writeFile(path.join(stageRoot, "public", "app.js"), standaloneApp)
   ]);
   await run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], stageRoot);
 
