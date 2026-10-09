@@ -77,7 +77,7 @@ pnpm check
           └─ 合并式后台重建队列
               └─ 可选透明裁边 → 等比缩放 → 64×64 单元格
                   └─ 临时生成透明 PNG + manifest + CSS
-                      └─ 校验文件可读 → 整体覆盖 generated/current
+                      └─ 校验文件可读 → 整体覆盖 output/current
                           ├─ OpenLayers Style 缓存
                           ├─ Mapbox addImage 适配器
                           └─ 普通页面 CSS / Canvas 适配器
@@ -115,7 +115,7 @@ pnpm check
 - `displayWidth`、`displayHeight`：可选，默认 32 CSS 像素。
 - `padding`：标准化边距，0～24 px，默认 6 px；
 - 批量接口的 `metadata` 是与 `files` 顺序一致的 JSON 数组。
-- `spriteName`：雪碧图基础名称，默认 `sprite`；输出为 `/generated/current/sprite.png`、`sprite.manifest.json` 和 `sprite.css`。
+- `spriteName`：雪碧图基础名称，默认 `sprite`；输出为 `/output/current/sprite.png`、`sprite.manifest.json` 和 `sprite.css`（访问前缀取 `outputDir` 目录名，默认 `output`）。
 - `trimTransparent`：批次级全局选项；`true` 表示所有图标先裁掉透明边界再等比缩放，默认 `false`。
 
 追加与替换规则：
@@ -154,7 +154,7 @@ pnpm check
 - `POST /api/icons/rebuild`：手动排队重建；
 - `GET /api/icons`：图标元数据列表。
 
-当前图集、manifest 和 CSS 使用 `Cache-Control: no-cache`，确保稳定 URL 被覆盖后浏览器会重新验证。发布过程先在临时目录完成并校验，再整体替换 `/generated/current`；成功后不保留上一版本。
+当前图集、manifest 和 CSS 使用 `Cache-Control: no-cache`，确保稳定 URL 被覆盖后浏览器会重新验证。发布过程先在临时目录完成并校验，再整体替换 `/output/current`；成功后不保留上一版本。
 
 ## 普通页面使用
 

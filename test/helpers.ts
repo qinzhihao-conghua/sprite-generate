@@ -10,7 +10,7 @@ export async function temporaryConfig() {
     config: createConfig({
       dataDir: path.join(root, "data"),
       publicDir: path.join(root, "public"),
-      generatedDir: path.join(root, "public", "generated")
+      generatedDir: path.join(root, "output")
     })
   };
 }

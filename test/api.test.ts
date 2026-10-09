@@ -39,9 +39,9 @@ test("上传、后台重建、ETag 与覆盖式图集发布形成完整闭环", 
   assert.equal(manifest.name, "map-icons");
   assert.equal(manifest.buildNumber, 1);
   assert.equal(manifest.trimTransparent, false);
-  assert.equal(manifest.image, "/generated/current/map-icons.png");
-  assert.equal(manifest.manifest, "/generated/current/map-icons.manifest.json");
-  assert.equal(manifest.stylesheet, "/generated/current/map-icons.css");
+  assert.equal(manifest.image, `${config.publicUrlBase}/current/map-icons.png`);
+  assert.equal(manifest.manifest, `${config.publicUrlBase}/current/map-icons.manifest.json`);
+  assert.equal(manifest.stylesheet, `${config.publicUrlBase}/current/map-icons.css`);
 
   const notModified = await fetch(`${baseUrl}/api/icons/manifest`, { headers: { "If-None-Match": etag! } });
   assert.equal(notModified.status, 304);
@@ -238,6 +238,6 @@ test("缺失的生成静态文件返回 404 而不是 500", async (context) => {
   const address = server.address();
   assert.ok(address && typeof address === "object");
 
-  const response = await fetch(`http://127.0.0.1:${address.port}/generated/current/missing.png`);
+  const response = await fetch(`http://127.0.0.1:${address.port}${config.publicUrlBase}/current/missing.png`);
   assert.equal(response.status, 404);
 });

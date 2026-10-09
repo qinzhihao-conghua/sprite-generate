@@ -45,6 +45,8 @@ export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfi
     recordsFile,
     publicDir,
     generatedDir,
+    /** 生成物的访问前缀，取 outputDir 目录名，如默认 output -> /output。 */
+    publicUrlBase: `/${path.basename(generatedDir)}`,
     spriteName: overrides.spriteName ?? "sprite",
     trimTransparent: overrides.trimTransparent ?? false,
     cellSize: overrides.cellSize ?? 64,

@@ -206,8 +206,7 @@ try {
     cp(compiledDir, path.join(stageRoot, "dist"), { recursive: true }),
     cp(path.join(projectRoot, "public"), path.join(stageRoot, "public"), {
       recursive: true,
-      filter: (source) =>
-        path.basename(source) !== "generated" && path.basename(source) !== "openlayers-adapter.js"
+      filter: (source) => path.basename(source) !== "openlayers-adapter.js"
     }),
     writeFile(path.join(stageRoot, "package.json"), `${JSON.stringify(runtimePackage, null, 2)}\n`)
   ]);

@@ -15,7 +15,7 @@ test("服务启动准备会自动扫描原图、保留元数据并构建图集",
   await initializeProject(root, {
     sourceDir: "assets/icons",
     metadataFile: "assets/icons.metadata.json",
-    outputDir: "public/generated",
+    outputDir: "output",
     spriteName: "project-icons"
   });
   await writeFile(path.join(sourceDir, "hospital.svg"), svg("#315b8a"));
@@ -51,7 +51,7 @@ test("服务启动准备会自动扫描原图、保留元数据并构建图集",
   const prepared = await prepareProject(root);
   assert.equal(prepared.records.length, 2);
   const manifest = JSON.parse(
-    await readFile(path.join(root, "public", "generated", "current", "renamed-icons.manifest.json"), "utf8")
+    await readFile(path.join(config.generatedDir, "current", "renamed-icons.manifest.json"), "utf8")
   );
   assert.equal(manifest.trimTransparent, true);
   assert.deepEqual(Object.keys(manifest.icons), ["camera", "hospital"]);

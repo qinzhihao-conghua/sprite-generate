@@ -33,9 +33,10 @@ test("17 个图标按固定网格生成确定性 manifest，并覆盖上一版�
 
   const publisher = new AtlasPublisher(config);
   const first = await publisher.publish(await store.list(), "map-icons");
-  assert.equal(first.manifest.image, "/generated/current/map-icons.png");
-  assert.equal(first.manifest.manifest, "/generated/current/map-icons.manifest.json");
-  assert.equal(first.manifest.stylesheet, "/generated/current/map-icons.css");
+  const baseUrl = config.publicUrlBase;
+  assert.equal(first.manifest.image, `${baseUrl}/current/map-icons.png`);
+  assert.equal(first.manifest.manifest, `${baseUrl}/current/map-icons.manifest.json`);
+  assert.equal(first.manifest.stylesheet, `${baseUrl}/current/map-icons.css`);
   assert.equal(first.manifest.buildNumber, 1);
   assert.equal(first.manifest.trimTransparent, false);
   assert.equal(first.manifest.width, 1024);
@@ -57,7 +58,7 @@ test("17 个图标按固定网格生成确定性 manifest，并覆盖上一版�
   );
   assert.match(stylesheet, /\[class~="4-default"\],/);
   assert.match(stylesheet, /\[class~="icon-16"\] \{/);
-  assert.match(stylesheet, /background-image: url\("\/generated\/current\/map-icons\.png"\)/);
+  assert.ok(stylesheet.includes(`background-image: url("${config.publicUrlBase}/current/map-icons.png")`));
   assert.match(stylesheet, /\[class~="icon-16"\] \{[\s\S]*background-position: 0px -32px;/);
   const second = await publisher.publish(await store.list(), "map-icons");
   assert.equal(second.manifest.version, first.manifest.version);

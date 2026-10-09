@@ -55,6 +55,7 @@ export interface SpriteConfig {
   recordsFile: string;
   publicDir: string;
   generatedDir: string;
+  publicUrlBase: string;
   spriteName: string;
   trimTransparent: boolean;
   cellSize: number;

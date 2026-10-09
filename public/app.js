@@ -28,11 +28,12 @@ function seeded(index) {
 /* standalone:openlayers:end */
 
 /** 更新图标数量、资源请求数和可选地图点位指标。 */
-function showMetrics(iconCount) {
+function showMetrics(iconCount, manifest) {
   const resources = performance.getEntriesByType("resource");
   const manifestRequests = resources.filter((item) => item.name.includes("/api/icons/manifest")).length;
   const stylesheetRequests = resources.filter((item) => item.name.includes("/api/icons/stylesheet")).length;
-  const atlasRequests = resources.filter((item) => item.name.includes("/generated/current/") && item.name.endsWith(".png")).length;
+  const atlasBase = manifest?.image ? manifest.image.slice(0, manifest.image.lastIndexOf("/")) : "/output/current";
+  const atlasRequests = resources.filter((item) => item.name.includes(atlasBase) && item.name.endsWith(".png")).length;
   const mapMetric = document.querySelector("#map")
     ? "<div><strong>1000</strong><span>地图点位</span></div>"
     : "";
@@ -333,7 +334,7 @@ try {
   /* standalone:openlayers:start */
   if (document.querySelector("#map") && globalThis.ol) await renderMap(iconIds);
   /* standalone:openlayers:end */
-  requestAnimationFrame(() => showMetrics(iconIds.length));
+  requestAnimationFrame(() => showMetrics(iconIds.length, manifest));
   status.textContent = document.querySelector("#map")
     ? `PNG 图集 ${manifest.name} · ${manifest.version} 已加载，可同时用于地图和普通页面。`
     : `PNG 图集 ${manifest.name} · ${manifest.version} 已加载。`;

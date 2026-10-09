@@ -280,7 +280,7 @@ export function createApp(config: SpriteConfig) {
   );
 
   app.use(
-    "/generated",
+    config.publicUrlBase,
     express.static(config.generatedDir, {
       fallthrough: false,
       setHeaders(response) {

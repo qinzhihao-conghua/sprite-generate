@@ -147,7 +147,7 @@ export class AtlasPublisher {
       current?.contentHash === contentHash &&
       current.spriteName === spriteName &&
       current.trimTransparent === trimTransparent &&
-      current.stylesheet?.startsWith("/generated/current/")
+      current.stylesheet?.startsWith(`${this.config.publicUrlBase}/current/`)
     ) {
       const manifestFile = path.join(currentDir, path.basename(current.manifest));
       const stylesheetFile = path.join(currentDir, path.basename(current.stylesheet));
@@ -163,9 +163,10 @@ export class AtlasPublisher {
     const imageName = `${spriteName}.png`;
     const manifestName = `${spriteName}.manifest.json`;
     const stylesheetName = `${spriteName}.css`;
-    const manifestUrl = `/generated/current/${manifestName}`;
-    const imageUrl = `/generated/current/${imageName}`;
-    const stylesheetUrl = `/generated/current/${stylesheetName}`;
+    const baseUrl = this.config.publicUrlBase;
+    const manifestUrl = `${baseUrl}/current/${manifestName}`;
+    const imageUrl = `${baseUrl}/current/${imageName}`;
+    const stylesheetUrl = `${baseUrl}/current/${stylesheetName}`;
 
     const icons = Object.fromEntries(
       enabled.map((record, index) => [
