@@ -9,7 +9,7 @@ export const PROJECT_CONFIG_FILE = "sprite-generator.config.json";
 export const DEFAULT_PROJECT_CONFIG: ProjectConfigFile = {
   sourceDir: "src/assets/icons",
   metadataFile: "src/assets/icons.metadata.json",
-  outputDir: "public/generated",
+  outputDir: "output",
   spriteName: "sprite",
   trimTransparent: false
 };
@@ -35,7 +35,7 @@ export function createConfig(overrides: Partial<SpriteConfig> = {}): SpriteConfi
   );
   const publicDir = path.resolve(overrides.publicDir ?? process.env.SPRITE_PUBLIC_DIR ?? bundledPublicDir);
   const generatedDir = path.resolve(
-    overrides.generatedDir ?? process.env.SPRITE_GENERATED_DIR ?? path.join(projectRoot, "public", "generated")
+    overrides.generatedDir ?? process.env.SPRITE_GENERATED_DIR ?? path.join(projectRoot, "output")
   );
 
   return {

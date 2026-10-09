@@ -48,7 +48,7 @@ node sprite-generator.js
 {
   "sourceDir": "src/assets/icons",
   "metadataFile": "src/assets/icons.metadata.json",
-  "outputDir": "public/generated",
+  "outputDir": "output",
   "spriteName": "sprite",
   "trimTransparent": false
 }

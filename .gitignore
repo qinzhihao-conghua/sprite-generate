@@ -3,7 +3,9 @@ node_modules/
 .build/
 dist/
 data/
-public/generated/
+output/
+地图动态图标标准化与图集生成需求方案.md
+下一轮对话项目上下文.md
 coverage/
 *.log
 .DS_Store

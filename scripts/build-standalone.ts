@@ -146,10 +146,25 @@ void (async () => {
       try {
         await rename(temporary, runtimeDir);
       } catch (error) {
+        // 目标目录已存在（可能是本次并发进程抢先完成，也可能是上次遗留的残缺目录，
+        // 例如系统临时清理删除了 .complete 标记文件）。先尝试复用已就绪的目录。
+        let reusable = false;
         try {
-          if ((await readFile(marker, "utf8")) !== hash) throw error;
-        } finally {
+          reusable = (await readFile(marker, "utf8")) === hash;
+        } catch {
+          reusable = false;
+        }
+        if (reusable) {
           await rm(temporary, { recursive: true, force: true });
+        } else {
+          // 残留目录不完整或过时：安全删除后重试原子替换。
+          await rm(runtimeDir, { recursive: true, force: true });
+          try {
+            await rename(temporary, runtimeDir);
+          } catch (retryError) {
+            await rm(temporary, { recursive: true, force: true });
+            throw retryError;
+          }
         }
       }
     } catch (error) {
